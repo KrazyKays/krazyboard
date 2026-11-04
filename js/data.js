@@ -322,6 +322,37 @@ export const ARTIFACTS = {
   trefle:    { name: 'Coquillage porte-bonheur', emoji: '🍀', price: 9, text: 'Une fois : si vous ratez une plongée de moins de 25 %, elle est réussie quand même. Puis il se brise.' },
 };
 
+// ── Types de cartes : l'identité visible du premier coup d'œil ──
+export const CARD_TYPES = {
+  creature: { name: 'Créature', icon: '🐾' },
+  coral:    { name: 'Corail', icon: '🪸' },
+  artifact: { name: 'Artefact', icon: '🏺' },
+  mutation: { name: 'Mutation', icon: '🧬' },
+};
+
+// ── Mots-clés : leur définition s'affiche dans les popups dès qu'un texte les cite.
+// `match` est une expression régulière, sensible à la casse : « Banc » (la couronne)
+// n'est pas « banc » (votre paquet). Le vocabulaire de base (Éclat, Mult) n'y figure pas.
+export const KEYWORDS = [
+  { name: 'Sédentaire', match: 'Sédentaires?', text: 'Reste sur le récif d’une marée à l’autre, jusqu’à la fin de la plongée. Après sa première marée, elle ne peut plus être déplacée.' },
+  { name: 'Éphémère', match: 'Éphémères?', text: 'Une fois jouée, elle sort de la plongée en cours. Elle revient dans votre pioche à la plongée suivante.' },
+  { name: 'Fidèle', match: 'Fidèles?', text: 'Après la marée, elle revient directement en main au lieu de partir à la défausse.' },
+  { name: 'Éclosion', match: 'Éclosion', text: 'Après le nombre indiqué de marées jouées sur le récif, la créature se transforme pour toujours. Elle garde ses bonus et sa mutation.' },
+  { name: 'Grandit', match: 'Grandit', text: 'Le bonus gagné est permanent : il reste acquis jusqu’à la fin de l’expédition.' },
+  { name: 'Prédateur', match: 'Prédateurs?', text: 'Se nourrit de ses voisins. Le Requin réduit au silence les Poissons voisins le temps de la marée ; l’Orque retire sa proie du banc pour toujours.' },
+  { name: 'Parasite', match: 'Parasites?', text: 'Carte nuisible qui encombre votre banc. Relâchez-la au comptoir, ou faites-la retirer par un Orque ou un Labre nettoyeur.' },
+  { name: 'Pose', match: 'Pose', text: 'Effet immédiat au moment où vous posez la créature. Elle ne peut alors plus être déplacée pendant cette marée.' },
+  { name: 'Voisin', match: '[Vv]oisin(?:e|s|es)?', text: 'Les deux emplacements qui touchent la créature sur sa couronne. Un Flanc ➡ touche aussi le Flanc ⬅ du corail suivant.' },
+  { name: 'Opposée', match: '[Oo]pposée?s?', text: 'L’emplacement d’en face sur la même couronne : Surface ⬆ et Fond ⬇, ou les deux Flancs ⬅ ➡.' },
+  { name: 'Couronne complète', match: '[Cc]ouronnes? complètes?|[Cc]ouronne est complète', text: 'Tous les emplacements d’un corail sont occupés, ce qui lui donne +1 Mult.' },
+  { name: 'Banc (couronne)', match: 'Banc(?! fantôme)', text: 'Couronne complète d’une seule famille : Mult ×2.' },
+  { name: 'Mosaïque', match: 'Mosaïque', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
+  { name: 'Remous', match: 'Remous', text: 'Renvoyez des créatures de votre main pour en piocher autant. Leur nombre est limité à chaque plongée.' },
+  { name: 'Amélioration ★', match: 'améliorée ★|Amélioration ★|Améliorez une créature ★', text: '+50 % d’Éclat de base, définitivement.' },
+  { name: 'Cnidaire', match: 'Cnidaires?', text: 'Famille 🪼 : Méduse, Physalie, Pyrosome, Polype, Siphonophore, Plancton, Éphyrule.' },
+  { name: 'Échinoderme', match: 'Échinodermes?', text: 'Famille ⭐ : Étoile de mer, Oursin, Ophiure, Concombre de mer.' },
+];
+
 // ── Conditions (élites et gardiens) ─────────────────────────
 export const CONDITIONS = {
   kraken:   { name: 'Le Kraken', emoji: '🦑', text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules.' },

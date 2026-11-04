@@ -15,6 +15,15 @@ des profondeurs.
 Un **tutoriel** interactif est proposé sur l'écran titre : il se joue sur une expédition d'essai, sans toucher à la sauvegarde.
 Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement.
 
+Le bouton **Effacer mes données** de l'écran titre supprime, après confirmation, la sauvegarde et la progression stockées dans ce navigateur.
+
+## Lire une carte
+
+- **Type** : le bandeau, la forme et le fond distinguent les 🐾 créatures (carte ivoire), les 🪸 coraux (carte saumon en arche),
+  les 🏺 artefacts (plaque dorée) et les 🧬 mutations (cartouche violet en pointillés).
+- **Survol** : les popups définissent les mots-clés cités (Sédentaire, Éphémère, Voisin…) et montrent les cartes liées :
+  forme éclose d'un Œuf de requin, Anémone du Poisson-clown, artefact d'un plongeur, carte gagnée dans une épave.
+
 ## Le cœur du jeu : la couronne
 
 Chaque **corail** est le centre d'une couronne de 4 emplacements : Surface ⬆, Fond ⬇ et deux Flancs ⬅ ➡.
@@ -70,7 +79,7 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
 - **19 artefacts** qui changent les règles (Boussole, Écaille de sirène, Sablier, Bourse de nacre…).
 - **Méta-progression** : 4 plongeurs (un artefact et un penchant qui oriente les tirages), 5 niveaux de **Profondeur** (difficulté),
   un **bestiaire** à compléter et une **plongée du jour** (même graine pour tout le monde).
-- Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage).
+- Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage, effaçable depuis l'écran titre).
 
 ## Structure
 

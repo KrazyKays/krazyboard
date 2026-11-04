@@ -3,13 +3,14 @@
 // ─────────────────────────────────────────────────────────────
 import {
   SLOTS, SLOT_LABEL, SLOT_ICON, FAMILIES, RARITY, CREATURES, CORALS, CROWNS, ARTIFACTS,
-  CONDITIONS, ZONES, NODE_TYPES, DIVERS, DEPTHS, ROWS_PER_ZONE, MUTATIONS, BASE,
+  CONDITIONS, ZONES, NODE_TYPES, DIVERS, DEPTHS, ROWS_PER_ZONE, MUTATIONS, BASE, CARD_TYPES, KEYWORDS,
 } from './data.js';
 import * as E from './engine.js';
 
 const app = document.getElementById('app');
 const SAVE_KEY = 'krazy-sea-run-v3';
 const META_KEY = 'krazy-sea-meta-v2';
+const KEY_PREFIX = 'krazy-sea-'; // inclut les anciennes versions ; ne touche pas aux autres sites du même domaine
 const DEBUG = new URLSearchParams(location.search).has('debug');
 
 // ── Stockage ────────────────────────────────────────────────
@@ -17,10 +18,12 @@ function loadJSON(k, def) { try { return JSON.parse(localStorage.getItem(k)) ?? 
 function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage indisponible */ } }
 function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ } }
 
-const meta = Object.assign(
-  { runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {} },
-  loadJSON(META_KEY, {}),
-);
+function localKeys() {
+  try { return Object.keys(localStorage).filter((k) => k.startsWith(KEY_PREFIX)); } catch { return []; }
+}
+
+const newMeta = () => ({ runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {} });
+const meta = Object.assign(newMeta(), loadJSON(META_KEY, {}));
 const saveMeta = () => saveJSON(META_KEY, meta);
 
 const S = {
@@ -32,7 +35,24 @@ const S = {
   depth: Math.min(meta.depth, 0),
   anim: false,
   tuto: null,   // { i } pendant le tutoriel : expédition d'essai, jamais sauvegardée
+  notice: null, // message ponctuel de l'écran titre
 };
+
+// Efface tout ce que le jeu a stocké sur cet appareil. L'expédition en mémoire est
+// abandonnée aussi : sinon le prochain rendu la réécrirait aussitôt.
+function wipeLocalData() {
+  try { for (const k of localKeys()) localStorage.removeItem(k); } catch { /* stockage indisponible */ }
+  for (const k of Object.keys(meta)) delete meta[k];
+  Object.assign(meta, newMeta());
+  S.run = null;
+  S.tuto = null;
+  S.screen = 'title';
+  S.diver = 'exploratrice';
+  S.depth = 0;
+  S.modal = null;
+  resetUI();
+  lastBosses = 0;
+}
 
 function save() {
   if (S.run && !S.tuto && S.run.phase !== 'end') saveJSON(SAVE_KEY, S.run);
@@ -45,6 +65,8 @@ const fmt = (n) => Math.round(n).toLocaleString('fr-FR');
 const today = () => new Date().toISOString().slice(0, 10);
 const plural = (n, s, p = s + 's') => (n > 1 ? p : s);
 const zoomTpl = (html) => `<template>${html}</template>`;
+const typeBand = (type) => `<div class="a-type">${CARD_TYPES[type].icon} ${CARD_TYPES[type].name}</div>`;
+const glossText = (text) => `data-zoom data-gloss="t" data-gloss-text="${esc(text)}"`;
 
 function seen(list, key) { if (!meta[list].includes(key)) { meta[list].push(key); return true; } return false; }
 function trackSeen() {
@@ -69,9 +91,9 @@ function creatureCard(c, o = {}) {
   const tags = [def.allFam || c.mut === 'polyvalent' ? 'Toutes familles' : F.name, def.sed && 'Sédentaire', def.place && 'Pose', RARITY[def.rar].name]
     .filter(Boolean).join(' · ');
   const hatch = def.evolve && c.xp ? ` (${c.xp}/${def.evolve.after})` : '';
-  const hover = o.mini ? 'data-zoom' : `data-tip="${esc(`${def.name} — ${def.text}`)}"`;
+  const hover = o.mini ? 'data-zoom' : `data-zoom data-gloss="${['c', c.t, c.bonus || 0, c.mbonus || 0, c.star || 0, c.xp || 0, c.mut || ''].join('|')}"`;
   return `<div class="${cls}" ${act} data-t="${c.t}" style="--fam:${F.color}" ${hover}>
-    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span>${M ? `<span class="c-mut" data-tip="${esc(`${M.name} — ${M.text}`)}">${M.emoji}</span>` : ''}<span class="c-nums">${c.mbonus ? `<span class="c-pts mult" data-tip="Mult permanent">+${c.mbonus}M</span>` : ''}<span class="c-pts" data-tip="Éclat de base">${pts}</span></span></div>
+    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span><span class="c-type">${CARD_TYPES.creature.name}</span>${M ? `<span class="c-mut" data-tip="${esc(`${M.name} — ${M.text}`)}">${M.emoji}</span>` : ''}<span class="c-nums">${c.mbonus ? `<span class="c-pts mult" data-tip="Mult permanent">+${c.mbonus}M</span>` : ''}<span class="c-pts" data-tip="Éclat de base">${pts}</span></span></div>
     <div class="c-em">${def.emoji}</div>
     <div class="c-nm">${def.name}${stars}</div>
     <div class="c-tx">${def.text}${hatch}${M ? `<div class="c-mutx">${M.emoji} <b>${M.name}</b> : ${M.text}</div>` : ''}</div>
@@ -85,7 +107,7 @@ function offerCard(c, o = {}) {
   return `<div class="offer-item">${creatureCard(c, o)}<div class="hints">${hints}</div>${o.extra || ''}</div>`;
 }
 
-const mutationCard = (m, extra = '') => `<div class="artifact mutation"><div class="a-em">${MUTATIONS[m].emoji}</div><div class="a-nm">🧬 ${MUTATIONS[m].name}</div><div class="a-tx">${MUTATIONS[m].text}</div>${extra}</div>`;
+const mutationCard = (m, extra = '') => `<div class="artifact mutation" data-zoom data-gloss="m|${m}">${typeBand('mutation')}<div class="a-em">${MUTATIONS[m].emoji}</div><div class="a-nm">${MUTATIONS[m].name}</div><div class="a-tx">${MUTATIONS[m].text}</div>${extra}</div>`;
 
 // Avancement des écosystèmes : composition de votre banc par famille.
 function ecoChips(r, onlyActive = false) {
@@ -101,22 +123,22 @@ function coralCard(t, o = {}) {
   const k = CORALS[t];
   const act = o.action ? `data-action="${o.action}" data-id="${o.id ?? t}"` : '';
   const lvl = o.lvl ? ` <span class="star">+${o.lvl}</span>` : '';
-  const hover = o.mini ? 'data-zoom' : `data-tip="${esc(`${k.name} — ${k.text}`)}"`;
+  const hover = o.mini ? 'data-zoom' : `data-zoom data-gloss="k|${t}"`;
   return `<div class="card coral-card r-${k.rar} ${o.pick ? 'pick' : ''} ${o.mini ? 'mini' : ''}" ${act} style="--fam:${k.color}" ${hover}>
-    ${o.mini ? zoomTpl(coralCard(t, { lvl: o.lvl })) : ''}<div class="c-top"><span class="c-fam">🪸</span><span class="c-pts mult" data-tip="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
+    ${o.mini ? zoomTpl(coralCard(t, { lvl: o.lvl })) : ''}<div class="c-top"><span class="c-fam">${CARD_TYPES.coral.icon}</span><span class="c-type">${CARD_TYPES.coral.name}</span><span class="c-pts mult" data-tip="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
     <div class="c-em">${k.emoji}</div>
     <div class="c-nm">${k.name}${lvl}</div>
     <div class="c-tx">${k.text}</div>
-    <div class="c-tags">Corail · ${RARITY[k.rar].name}</div>
+    <div class="c-tags">${RARITY[k.rar].name}</div>
   </div>`;
 }
 
 function artifactCard(a, extra = '') {
   const x = ARTIFACTS[a];
-  return `<div class="artifact"><div class="a-em">${x.emoji}</div><div class="a-nm">${x.name}</div><div class="a-tx">${x.text}</div>${extra}</div>`;
+  return `<div class="artifact" data-zoom data-gloss="a|${a}">${typeBand('artifact')}<div class="a-em">${x.emoji}</div><div class="a-nm">${x.name}</div><div class="a-tx">${x.text}</div>${extra}</div>`;
 }
 const artifactChip = (a) => `<span class="chip" data-tip="${esc(`${ARTIFACTS[a].name} — ${ARTIFACTS[a].text}`)}">${ARTIFACTS[a].emoji}</span>`;
-const condChip = (k) => `<span class="chip cond" data-tip="${esc(CONDITIONS[k].text)}">${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</span>`;
+const condChip = (k) => `<span class="chip cond" data-tip="${esc(`${CONDITIONS[k].name} — ${CONDITIONS[k].text}`)}">${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</span>`;
 const oxygen = (r) => `<span class="o2" data-tip="Oxygène : vos points de vie. Une plongée ratée coûte 1 🫧.">${'🫧'.repeat(Math.max(0, r.oxygen))}<span class="o2-off">${'🫧'.repeat(Math.max(0, r.oxygenMax - r.oxygen))}</span></span>`;
 
 function topbar(extra = '') {
@@ -143,7 +165,7 @@ function diverUnlocked(v) {
 function renderTitle() {
   const divers = Object.entries(DIVERS).map(([k, v]) => {
     const ok = diverUnlocked(v);
-    return `<button class="diver ${S.diver === k ? 'on' : ''} ${ok ? '' : 'locked'}" data-action="diver" data-k="${k}" ${ok ? '' : 'disabled'}>
+    return `<button class="diver ${S.diver === k ? 'on' : ''} ${ok ? '' : 'locked'}" data-action="diver" data-k="${k}" ${ok ? glossText(v.text) : 'disabled'}>
       <div class="em">${ok ? v.emoji : '🔒'}</div><div class="nm">${v.name}</div>
       <div class="tx">${ok ? v.text : v.unlock.text}</div></button>`;
   }).join('');
@@ -151,6 +173,8 @@ function renderTitle() {
     ? `<button class="btn tiny ${S.depth === i ? 'primary' : ''}" data-action="depth" data-i="${i}" data-tip="${esc(dp.text)}">${i === 0 ? 'Surface' : i}</button>` : '')).join('');
   const daily = meta.daily[today()];
   const firstTime = !meta.tuto && !meta.runs && !hasSave();
+  const notice = S.notice;
+  S.notice = null;
   app.innerHTML = `<div class="title-screen">
     <img class="pixel-logo" src="favicon.svg" alt="">
     <div class="logo">Krazy Sea</div>
@@ -170,8 +194,10 @@ function renderTitle() {
       ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
       <button class="btn ghost" data-action="rules">Règles</button>
       <button class="btn ghost" data-action="bestiary">Bestiaire ${meta.seenC.length}/${Object.keys(CREATURES).length}</button>
+      <button class="btn ghost" data-action="wipeask" ${localKeys().length ? '' : 'disabled'}>🗑 Effacer mes données</button>
     </div>
     <div class="meta">Expéditions : ${meta.runs} · Victoires : ${meta.wins} · Gardiens vaincus : ${meta.bosses} · Plus profond : ${ZONES[meta.bestZone].name}</div>
+    ${notice ? `<div class="notice">${esc(notice)}</div>` : ''}
   </div>`;
 }
 
@@ -221,7 +247,7 @@ function renderMap() {
         <div class="routes">${next || '<div class="muted">—</div>'}</div>
         <div class="boss-card">
           <div class="bc-h">👑 Gardien de la zone · objectif ${fmt(E.targetFor(r, boss))}</div>
-          ${boss.cond.map((k) => `<div class="bc-c"><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
+          ${boss.cond.map((k) => `<div class="bc-c" ${glossText(CONDITIONS[k].text)}><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
           <div class="muted">Rater le gardien met fin à l’expédition. Le vaincre : nouveau corail et oxygène rechargé.</div>
         </div>
         <div class="legend">${Object.entries(NODE_TYPES).map(([, t]) => `<span data-tip="${esc(t.text)}">${t.icon} ${t.name}</span>`).join('')}</div>
@@ -406,11 +432,11 @@ function renderShop() {
   app.innerHTML = `<div class="screen">${topbar()}${toast()}<div class="between">
     <h2>⚓ Le Comptoir</h2>
     <div class="shop-top">
-      <div><h3>Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · 🦪 ${s.reroll}</button></h3>
+      <div><h3>${CARD_TYPES.creature.icon} Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · 🦪 ${s.reroll}</button></h3>
         <div class="offer">${cr}</div></div>
-      ${s.co.length ? `<div><h3>Bouture de corail</h3><div class="offer">${co}</div></div>` : ''}
+      ${s.co.length ? `<div><h3>${CARD_TYPES.coral.icon} Bouture de corail</h3><div class="offer">${co}</div></div>` : ''}
     </div>
-    <h3>Artefacts et mutation</h3><div class="offer">${ar}${mu}</div>
+    <h3>${CARD_TYPES.artifact.icon} Artefacts et ${CARD_TYPES.mutation.icon} mutation</h3><div class="offer">${ar}${mu}</div>
     <div class="shop-foot">
       <button class="btn" data-action="shopremove" ${r.pearls >= r.removeCost && r.bag.length > 6 ? '' : 'disabled'}>Relâcher une créature · 🦪 ${r.removeCost}</button>
       <button class="btn" data-action="shopheal" ${r.pearls >= E.healCost(r) && r.oxygen < r.oxygenMax ? '' : 'disabled'}>+1 🫧 · 🦪 ${E.healCost(r)}</button>
@@ -426,7 +452,7 @@ function renderEvent() {
     ? `<p class="ev-res">${esc(r.event.msg || '')}</p><button class="btn primary" data-action="leave">Continuer →</button>`
     : ev.choices.map((c, i) => {
       const ok = !c.ok || c.ok(r);
-      return `<button class="btn choice" data-action="evchoice" data-i="${i}" ${ok ? '' : 'disabled'}><b>${esc(c.label)}</b>${c.text ? `<span>${esc(c.text)}</span>` : ''}</button>`;
+      return `<button class="btn choice" data-action="evchoice" data-i="${i}" ${ok ? '' : 'disabled'} ${glossText(`${c.label}. ${c.text || ''}`)}><b>${esc(c.label)}</b>${c.text ? `<span>${esc(c.text)}</span>` : ''}</button>`;
     }).join('');
   app.innerHTML = `<div class="screen">${topbar()}<div class="between event">
     <div class="ev-em">${ev.emoji}</div><h2>${ev.title}</h2><p class="ev-tx">${ev.text}</p>
@@ -441,7 +467,7 @@ function renderRest() {
     <p class="ev-tx">Un recoin abrité où le récif reprend des forces avant d’affronter le gardien. Choisissez une seule option.</p>
     <div class="choices">
       <button class="btn choice" data-action="rest" data-w="heal" ${r.oxygen < r.oxygenMax ? '' : 'disabled'}><b>Reprendre son souffle</b><span>+1 🫧 Oxygène</span></button>
-      <button class="btn choice" data-action="rest" data-w="upgrade"><b>Faire grandir une créature</b><span>Amélioration ★ : +50 % d’Éclat de base, définitivement</span></button>
+      <button class="btn choice" data-action="rest" data-w="upgrade" ${glossText('Amélioration ★')}><b>Faire grandir une créature</b><span>Amélioration ★ : +50 % d’Éclat de base, définitivement</span></button>
       <button class="btn choice" data-action="rest" data-w="fortify"><b>Fortifier un corail</b><span>+1 Mult permanent</span></button>
       <button class="btn choice" data-action="rest" data-w="mutate"><b>Provoquer une mutation</b><span>1 mutation parmi 3, à poser sur la créature de votre choix</span></button>
       <button class="btn choice" data-action="rest" data-w="merge" ${E.canMerge(r) ? '' : 'disabled'}><b>Fusionner deux créatures identiques</b><span>★ Éclat additionné, +1 Mult permanent, et une carte de moins au banc</span></button>
@@ -496,7 +522,8 @@ const RULES = `
   <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien y met fin aussitôt.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
   Vaincre l’expédition débloque une <b>Profondeur</b> plus difficile.</p>
-  <h4>Astuces</h4><p>Survolez une créature ou un corail du récif, ou une carte du banc, pour la lire en grand.
+  <h4>Astuces</h4><p>Survolez une carte pour lire la définition de ses mots-clés et voir les cartes qu’elle cite, comme la forme éclose d’un Œuf de requin.
+  Le bandeau en haut d’une carte indique son type : 🐾 créature, 🪸 corail, 🏺 artefact ou 🧬 mutation.
   Glissez-déposez les créatures pour les poser, les déplacer ou les échanger sur le récif, les reprendre en main ou choisir l’ordre de votre main.</p>`;
 
 // Grille calculée pour que toutes les cartes tiennent dans la fenêtre.
@@ -568,6 +595,20 @@ function modalHTML() {
     return `<div class="modal-bg" data-action="closemodal"><div class="modal rules" data-stop>
       <h2>Règles de Krazy Sea</h2><div class="cols">${RULES}</div>
       <button class="btn primary" data-action="closemodal">Compris !</button></div></div>`;
+  }
+  if (S.modal === 'wipe') {
+    const lost = [
+      hasSave() && 'votre expédition en cours',
+      'vos statistiques et vos scores de plongée du jour',
+      'les plongeurs et les Profondeurs débloqués',
+      'votre bestiaire',
+    ].filter(Boolean);
+    return `<div class="modal-bg" data-action="closemodal"><div class="modal" data-stop>
+      <h2>🗑 Effacer vos données ?</h2>
+      <p class="wipe-tx">Le jeu reviendra à zéro sur ce navigateur. Cette action est définitive et supprimera :</p>
+      <ul class="wipe-list">${lost.map((l) => `<li>${l}</li>`).join('')}</ul>
+      <div class="row"><button class="btn primary" data-action="closemodal">Annuler</button>
+        <button class="btn danger" data-action="wipeok">Tout effacer</button></div></div></div>`;
   }
   if (S.modal === 'bag') {
     // Pendant une plongée, le banc se lit par pile. Tri par espèce dans chacune :
@@ -707,14 +748,94 @@ zoomEl.hidden = true;
 document.body.append(zoomEl);
 let zoomFor = null;
 function hideZoom() { zoomEl.hidden = true; zoomFor = null; }
+
+// ── Glossaire : ce qu'un texte cite (mots-clés et autres cartes) ──
+const noApos = (t) => t.replace(/’/g, "'");
+const wordRe = (src) => new RegExp(`(?<![\\p{L}-])(?:${src})(?![\\p{L}])`, 'gu');
+const quote = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const KW_RE = KEYWORDS.map((k) => ({ ...k, re: wordRe(k.match) }));
+// Du nom le plus long au plus court : « Filet fantôme » ne doit pas citer l'artefact « Filet ».
+const REFS = [
+  ...Object.entries(CREATURES).map(([key, d]) => ({ kind: 'c', key, def: d })),
+  ...Object.entries(CORALS).map(([key, d]) => ({ kind: 'k', key, def: d })),
+  ...Object.entries(ARTIFACTS).map(([key, d]) => ({ kind: 'a', key, def: d })),
+].map((x) => ({ ...x, re: wordRe(`${quote(noApos(x.def.name))}s?`) }))
+  .sort((a, b) => b.def.name.length - a.def.name.length);
+
+const scanCache = new Map();
+function scanText(text) {
+  if (scanCache.has(text)) return scanCache.get(text);
+  let rest = noApos(text);
+  const refs = REFS.filter((x) => {
+    const found = rest.search(x.re) >= 0;
+    if (found) rest = rest.replace(x.re, ' ');
+    return found;
+  });
+  const res = { refs, keywords: KW_RE.filter((k) => rest.search(k.re) >= 0) };
+  scanCache.set(text, res);
+  return res;
+}
+
+const refHTML = (x) => (x.kind === 'c' ? creatureCard({ t: x.key }) : x.kind === 'k' ? coralCard(x.key) : artifactCard(x.key));
+const REF_LABEL = { c: 'Créature citée', k: 'Corail cité', a: 'Artefact cité' };
+
+// Lit une carte (ou un texte) : formes liées à montrer et définitions à afficher.
+function glossOf(host) {
+  const [kind, ...a] = host.dataset.gloss.split('|');
+  const links = [];
+  let text = host.dataset.glossText || '';
+  let self = null;
+  let linkedText = '';
+  if (kind === 'c') {
+    const [t, bonus, mbonus, star, xp, mut] = a;
+    const def = CREATURES[t];
+    const M = mut && MUTATIONS[mut];
+    self = t;
+    text = `${def.text}${M ? ` ${M.name} : ${M.text}` : ''}`;
+    if (def.evolve) {
+      const left = Math.max(1, def.evolve.after - xp);
+      const into = def.evolve.into;
+      links.push({
+        key: into,
+        label: `🐣 Après éclosion · dans ${left} ${plural(left, 'marée')} ${plural(left, 'jouée')}`,
+        html: creatureCard({ t: into, bonus: +bonus, mbonus: +mbonus, star: +star, mut: mut || null }),
+      });
+      linkedText = CREATURES[into].text;
+    }
+  } else if (kind === 'k') { self = a[0]; text = CORALS[a[0]].text; }
+  else if (kind === 'a') { self = a[0]; text = ARTIFACTS[a[0]].text; }
+  else if (kind === 'm') { text = MUTATIONS[a[0]].text; }
+  const main = scanText(text);
+  for (const x of main.refs) {
+    if (x.key !== self && !links.some((l) => l.key === x.key)) links.push({ key: x.key, label: REF_LABEL[x.kind], html: refHTML(x) });
+  }
+  const notes = [...new Set([...main.keywords, ...scanText(linkedText).keywords,
+    ...main.refs.filter((x) => x.key !== self).flatMap((x) => scanText(x.def.text).keywords)])];
+  return { links, notes };
+}
+
 function showZoom(el) {
   zoomFor = el;
-  zoomEl.innerHTML = el.querySelector(':scope > template').innerHTML;
+  const tpl = el.querySelector(':scope > template');
+  const host = tpl ? tpl.content.querySelector('[data-gloss]') : el;
+  // Une carte entière affiche déjà son texte : on ne la répète que s'il est coupé.
+  let main = tpl ? tpl.innerHTML : '';
+  if (!tpl && el.matches('.card') && el.scrollHeight > el.clientHeight) {
+    const copy = el.cloneNode(true);
+    copy.classList.remove('sel', 'chosen', 'pick', 'drag-src');
+    main = copy.outerHTML;
+  }
+  const { links, notes } = host ? glossOf(host) : { links: [], notes: [] };
+  if (!main && !links.length && !notes.length) { zoomEl.hidden = true; return; }
+  zoomEl.innerHTML = `<div class="zoom-wrap">${main}
+    ${links.map((l) => `<div class="zoom-link"><div class="zl-h">${l.label}</div>${l.html}</div>`).join('')}
+    ${notes.length ? `<div class="kw-col">${notes.map((k) => `<div class="kw"><b>${k.name}</b>${k.text}</div>`).join('')}</div>` : ''}</div>`;
   zoomEl.hidden = false;
   const r = el.getBoundingClientRect();
   const w = zoomEl.offsetWidth; const h = zoomEl.offsetHeight;
   let top = r.bottom + 8;
-  if (top + h > innerHeight - 8) top = r.top - h - 8;
+  // Une carte de la main grandit au survol : on garde de la marge pour ne pas la couvrir.
+  if (top + h > innerHeight - 8) top = r.top - h - (el.closest('.hand-row') ? 26 : 8);
   let left = r.left + r.width / 2 - w / 2;
   if (top < 8) { // ni dessous ni dessus : à côté
     top = Math.max(8, Math.min(r.top, innerHeight - h - 8));
@@ -732,6 +853,21 @@ tipEl.hidden = true;
 document.body.append(tipEl);
 let tipFor = null;
 function hideTip() { tipEl.hidden = true; tipFor = null; }
+// Définitions à ajouter à une bulle titrée, sans redéfinir le sujet de la bulle.
+function tipNotes(title, body) {
+  const { keywords, refs } = scanText(body);
+  const head = scanText(title);
+  const note = (name, text) => {
+    const n = document.createElement('div');
+    n.className = 'tip-k';
+    n.append(Object.assign(document.createElement('b'), { textContent: name }), ` ${text}`);
+    return n;
+  };
+  return [
+    ...keywords.filter((k) => !head.keywords.includes(k)).map((k) => note(k.name, k.text)),
+    ...refs.filter((x) => !head.refs.includes(x)).map((x) => note(`${x.def.emoji} ${x.def.name}`, x.def.text)),
+  ];
+}
 function showTip(el) {
   if (el === tipFor) return;
   tipFor = el;
@@ -741,6 +877,7 @@ function showTip(el) {
   tipEl.replaceChildren(
     ...(cut < 0 ? [part('tip-b', first)] : [part('tip-h', first.slice(0, cut)), part('tip-b', first.slice(cut + 3))]),
     ...lines.map((l) => part('tip-l', l)),
+    ...(cut < 0 ? [] : tipNotes(first.slice(0, cut), [first.slice(cut + 3), ...lines].join(' '))),
   );
   tipEl.hidden = false;
   const r = el.getBoundingClientRect();
@@ -761,8 +898,6 @@ document.addEventListener('mouseover', (ev) => {
   let tip = ev.target.closest('[data-tip]');
   // Sur une mini-carte, l'aperçu agrandi dit déjà tout ; une pastille posée sur une case garde sa bulle.
   if (tip && zoom && (!zoom.contains(tip) || zoom.matches('.card.mini'))) tip = null;
-  // Une carte entière affiche déjà son texte : la bulle ne sert que s'il est coupé.
-  if (tip && tip.matches('.card') && tip.scrollHeight <= tip.clientHeight) tip = null;
   if (tip) { hideZoom(); showTip(tip); return; }
   hideTip();
   if (!zoom) hideZoom();
@@ -849,6 +984,8 @@ const handlers = {
   bestiary: () => { S.modal = 'bestiary'; },
   bag: () => { S.modal = 'bag'; },
   closemodal: () => { S.modal = null; },
+  wipeask: () => { S.modal = 'wipe'; },
+  wipeok: () => { wipeLocalData(); S.notice = 'Vos données locales ont été effacées.'; },
   menu: () => { S.modal = null; if (S.tuto) endTuto(); else S.screen = 'title'; },
   tuto: () => startTuto(),
   tutonext: () => { const st = TUTO[S.tuto.i]; S.tuto.i++; if (st.next) st.next(); },
