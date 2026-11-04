@@ -42,7 +42,7 @@ export const inst = (run, id) => run.bag.find((c) => c.id === id);
 export const defOf = (run, id) => CREATURES[inst(run, id).t];
 
 // ── Expédition ──────────────────────────────────────────────
-// `kit` ({ corals, bag }) impose le départ et saute le draft (tutoriel).
+// `kit` ({ corals, bag }) impose le départ et saute le draft aléatoire (tutoriel).
 export function newRun({ diverId = 'exploratrice', depth = 0, seed, daily = false, kit = null } = {}) {
   const diver = DIVERS[diverId];
   const s = seed ?? ((Math.random() * 2 ** 32) >>> 0);
@@ -141,10 +141,10 @@ export function draftOptions(run) {
 
 export function draftChoose(run, t) {
   const dr = run.draft;
-  if (run.phase !== 'draft' || !dr.options.includes(t)) return false;
+  if (run.phase !== 'draft' || !dr.options.includes(t) || (dr.forced && t !== dr.forced)) return false;
   addCreature(run, t);
   dr.picks.push(t);
-  if (dr.picks.length >= BASE.draftRounds) {
+  if (dr.picks.length >= (dr.rounds ?? BASE.draftRounds)) {
     run.draft = null;
     run.phase = 'map';
     run.toast = 'Votre banc est prêt : bonne plongée !';
@@ -187,20 +187,27 @@ export function offerHints(run, t) {
   return hints;
 }
 
-// Expédition du tutoriel : graine fixe et main préparée pour la démonstration.
+// Expédition du tutoriel : graine, départ et choix de préparation sont fixés. Le Nautile
+// imposé illustre les deux indices d'une offre : il plaît au Corail cerveau et débloque un
+// écosystème ; le Dauphin et l'Espadon montrent une simple progression.
 export function tutorialRun() {
   const run = newRun({ seed: 2024, kit: {
     corals: ['cerveau', 'gorgone'],
-    bag: ['sardine', 'sardine', 'sardine', 'crabe', 'crevette', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'globe', 'loutre'],
+    bag: ['sardine', 'sardine', 'sardine', 'crevette', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'globe', 'loutre'],
   } });
-  const first = run.map.rows[0].find(Boolean);
-  enterNode(run, first.row, first.lane);
+  run.tutorial = true;
+  run.phase = 'draft';
+  run.draft = { picks: [], options: ['dauphin', 'nautile', 'espadon'], rounds: 1, forced: 'nautile' };
+  return run;
+}
+
+// Première plongée du tutoriel : la main préparée pour la démonstration.
+export function tutorialHand(run) {
   const d = run.dive;
   const pool = [...d.hand, ...d.draw];
   const take = (t) => pool.splice(pool.findIndex((id) => inst(run, id).t === t), 1)[0];
-  d.hand = ['sardine', 'crevette', 'meduse', 'sardine', 'tortue', 'crabe', 'loutre'].map(take);
+  d.hand = ['sardine', 'crevette', 'meduse', 'sardine', 'tortue', 'globe', 'loutre'].map(take);
   d.draw = pool;
-  return run;
 }
 
 export function addCreature(run, t, extra = {}) {
@@ -1019,7 +1026,7 @@ export const EVENTS = {
     choices: [
       { label: 'Unir deux créatures identiques', text: 'Fusion ★ : Éclat additionné et +1 Mult permanent', ok: canMerge,
         act: (r) => { r.pending = { purpose: 'merge', then: 'map' }; return null; } },
-      { label: 'Accueillir les nouveau-nés', text: '2 créatures communes de votre famille dominante',
+      { label: 'Accueillir les nouveau-nés', text: '2 créatures communes de la famille la plus nombreuse de votre banc',
         act: (r) => {
           const f = dominantFam(r);
           const pool = Object.keys(CREATURES).filter((k) => CREATURES[k].rar === 'c' && CREATURES[k].fam === f);

@@ -12,7 +12,7 @@ des profondeurs.
   (les modules ES ne se chargent pas en `file://`).
 - En ligne : voir « Déploiement » ci-dessous.
 
-Un **tutoriel** interactif est proposé sur l'écran titre : il se joue sur une expédition d'essai, sans toucher à la sauvegarde.
+Un **tutoriel** interactif est proposé sur l'écran titre : avec un départ fixé, il guide la préparation (choix imposé parmi 3 créatures), la carte et la première marée. Le joueur peut ensuite finir cette expédition, qui compte comme une vraie et garde sa propre sauvegarde.
 Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement.
 
 Le bouton **Effacer mes données** de l'écran titre supprime, après confirmation, la sauvegarde et la progression stockées dans ce navigateur.
@@ -36,9 +36,9 @@ Toute la profondeur tactique vient des **associations** :
 
 - **Voisins** : chaque emplacement touche ses deux voisins, et la case d'en face est son **opposée**
   (la Crevette nettoyeuse donne +3 à ses voisins, la Physalie leur retire de l'Éclat, le Calmar copie la créature opposée…).
-- **Ponts** : le Flanc ➡ d'un corail touche le Flanc ⬅ du corail suivant.
+- **Ponts** 🔗 : le Flanc ➡ d'un corail touche le Flanc ⬅ du corail suivant. Le lien s'illumine quand les deux créatures sont posées.
 - **Position** : certaines créatures brillent en Surface ou au Fond (Raie manta, Homard, Étoile de mer).
-- **Couronnes** : 💠 complète (+1 Mult) · 🎯 **Banc**, une seule famille (Mult ×2) · 🌈 **Mosaïque**, que des familles différentes (Mult ×1,5).
+- **Couronnes** : 💠 complète (+1 Mult) · 🎯 **Harmonie**, une seule famille (Mult ×2) · 🌈 **Mosaïque**, que des familles différentes (Mult ×1,5).
 - **Coraux** : chacun a son propre penchant (l'Anémone renforce les Poissons, la Gorgone aime être bien remplie,
   le Corail noir n'a que 3 emplacements mais un Mult de 5…).
 
@@ -47,7 +47,7 @@ Les créatures non posées restent en main, et les **Sédentaires** restent sur 
 Tout se joue au clic ou en **glisser-déposer** (souris et tactile) : poser une créature, la déplacer ou l'échanger sur le récif,
 la reprendre en main ou choisir l'ordre de sa main.
 
-Chaque bonus actif s'affiche près de son corail avec sa valeur (`💠 Couronne complète +1M`, `🎯 Banc ×2M`…) ;
+Chaque bonus actif s'affiche près de son corail avec sa valeur (`💠 Couronne complète +1M`, `🎯 Harmonie ×2M`…) ;
 une pastille pâle signale qu'il ne manque plus qu'une créature pour compléter la couronne.
 
 ## Construire son banc

@@ -63,7 +63,7 @@ export const CREATURES = {
     text: '+1 Mult par voisin.',
     mult: (x) => x.nbs.length },
   espadon: { name: 'Espadon', emoji: '🗡️', fam: 'poisson', pts: 6, rar: 'u',
-    text: 'Solitaire : Éclat ×3 s’il n’a aucun voisin.',
+    text: 'Solitaire : +12 Éclat s’il n’a aucun voisin.',
     eclat: (x) => (x.nbs.length === 0 ? 12 : 0) },
   lune: { name: 'Poisson-lune', emoji: '🌕', fam: 'poisson', pts: 1, rar: 'u',
     text: 'Grandit : +2 Éclat permanent après chaque marée où il joue.',
@@ -96,7 +96,7 @@ export const CREATURES = {
   poulpe: { name: 'Poulpe', emoji: '🐙', fam: 'mollusque', pts: 2, rar: 'c',
     text: 'Pose : piochez 1 créature.', place: { draw: 1 } },
   nudi: { name: 'Nudibranche', emoji: '🐌', fam: 'mollusque', pts: 2, rar: 'c',
-    text: '+3 Mult si ses voisins (2 min.) sont tous de familles différentes.',
+    text: 'Au moins 2 voisins, tous de familles différentes : +3 Mult.',
     mult: (x) => {
       if (x.nbs.length < 2 || x.nbs.some((n) => n.allFam)) return x.nbs.length >= 2 ? 3 : 0;
       return new Set(x.nbs.map((n) => n.def.fam)).size === x.nbs.length ? 3 : 0;
@@ -141,7 +141,7 @@ export const CREATURES = {
 
   // ── Autres ──
   requin: { name: 'Requin', emoji: '🦈', fam: 'poisson', pts: 4, rar: 'u',
-    text: 'Prédateur : +6 Éclat par Poisson voisin, qui ne marque plus rien.',
+    text: 'Prédateur : ses Poissons voisins ne marquent plus rien, et il gagne +6 Éclat pour chacun.',
     pre: (x) => { for (const n of x.nbs) if (fam(n, 'poisson') && n.t !== 'requin') { n.silenced = true; x.aura += 6; } } },
   anguille: { name: 'Anguille électrique', emoji: '⚡', fam: 'poisson', pts: 1, rar: 'r',
     text: 'Ses voisins marquent deux fois leur Éclat.',
@@ -162,10 +162,10 @@ export const CREATURES = {
     text: '+2 Éclat par Anchois dans votre banc.',
     eclat: (x, B) => 2 * B.bagT('anchois') },
   krill: { name: 'Krill', emoji: '🍤', fam: 'crustace', pts: 1, rar: 'c',
-    text: '+1 Éclat par tranche de 4 créatures dans votre banc.',
+    text: '+1 Éclat toutes les 4 créatures de votre banc. Ex. : 12 créatures, +3 Éclat.',
     eclat: (x, B) => Math.floor(B.bagCount / 4) },
   hippocampe: { name: 'Hippocampe', emoji: '🐴', fam: 'poisson', pts: 2, rar: 'u',
-    text: '+1 Mult par créature de moins que 15 dans votre banc (max +6).',
+    text: 'Si votre banc a moins de 15 créatures : +1 Mult par créature manquante (max +6). Ex. : 12 créatures, +3 Mult.',
     mult: (x, B) => Math.max(0, Math.min(6, 15 - B.bagCount)) },
   siphonophore: { name: 'Siphonophore', emoji: '🧵', fam: 'cnidaire', pts: 1, rar: 'u',
     text: '+1 Mult par Cnidaire dans votre banc.',
@@ -178,12 +178,12 @@ export const CREATURES = {
   remora: { name: 'Rémora', emoji: '🧲', fam: 'poisson', pts: 3, rar: 'c', loyal: true,
     text: 'Fidèle : revient en main après la marée.' },
   pilote: { name: 'Poisson-pilote', emoji: '🚩', fam: 'poisson', pts: 2, rar: 'u',
-    text: 'Pose : piochez la créature la plus forte de votre pioche.', place: { tutor: 1 } },
+    text: 'Pose : piochez la créature de votre pioche qui a le plus d’Éclat de base.', place: { tutor: 1 } },
   murene: { name: 'Murène', emoji: '🪱', fam: 'poisson', pts: 2, rar: 'u',
     text: '+1 Éclat par créature dans la défausse.',
     eclat: (x, B) => B.discardN },
   seiche: { name: 'Seiche', emoji: '🌫️', fam: 'mollusque', pts: 2, rar: 'u',
-    text: 'Pose : défaussez votre main et piochez-en une de plus.', place: { cycle: true } },
+    text: 'Pose : défaussez votre main, puis piochez autant de créatures, plus une.', place: { cycle: true } },
 
   // ── Éphémères : énormes, mais une seule fois par plongée ──
   plancton: { name: 'Plancton luisant', emoji: '✨', fam: 'cnidaire', pts: 0, rar: 'c', ephem: true,
@@ -237,23 +237,23 @@ export const MUTATIONS = {
 // débloque un bonus (chaque palier remplace le précédent).
 export const ECOSYSTEMS = {
   poisson:   { name: 'Grand banc', tiers: [
-    { n: 4, eclat: 2, text: 'Poissons : +2 Éclat.' },
-    { n: 7, eclat: 5, text: 'Poissons : +5 Éclat.' }] },
+    { n: 4, eclat: 2, text: 'Chaque Poisson a +2 Éclat.' },
+    { n: 7, eclat: 5, text: 'Chaque Poisson a +5 Éclat.' }] },
   crustace:  { name: 'Carapaces', tiers: [
-    { n: 4, eclat: 2, text: 'Crustacés : +2 Éclat.' },
-    { n: 7, eclat: 2, mult: 1, text: 'Crustacés : +2 Éclat et +1 Mult.' }] },
+    { n: 4, eclat: 2, text: 'Chaque Crustacé a +2 Éclat.' },
+    { n: 7, eclat: 2, mult: 1, text: 'Chaque Crustacé a +2 Éclat et +1 Mult.' }] },
   mollusque: { name: 'Nuage d’encre', tiers: [
     { n: 3, remous: 1, text: '+1 Remous à chaque plongée.' },
     { n: 5, remous: 1, hand: 1, text: '+1 Remous et +1 créature en main.' }] },
   cnidaire:  { name: 'Essaim', tiers: [
-    { n: 3, mult: 1, text: 'Cnidaires : +1 Mult.' },
-    { n: 5, mult: 2, text: 'Cnidaires : +2 Mult.' }] },
+    { n: 3, mult: 1, text: 'Chaque Cnidaire a +1 Mult.' },
+    { n: 5, mult: 2, text: 'Chaque Cnidaire a +2 Mult.' }] },
   mammifere: { name: 'Troupeau', tiers: [
-    { n: 3, eclat: 3, text: 'Mammifères : +3 Éclat.' },
-    { n: 5, eclat: 8, text: 'Mammifères : +8 Éclat.' }] },
+    { n: 3, eclat: 3, text: 'Chaque Mammifère a +3 Éclat.' },
+    { n: 5, eclat: 8, text: 'Chaque Mammifère a +8 Éclat.' }] },
   echino:    { name: 'Colonie', tiers: [
-    { n: 3, eclat: 3, text: 'Échinodermes : +3 Éclat.' },
-    { n: 5, eclat: 3, mult: 2, text: 'Échinodermes : +3 Éclat et +2 Mult.' }] },
+    { n: 3, eclat: 3, text: 'Chaque Échinoderme a +3 Éclat.' },
+    { n: 5, eclat: 3, mult: 2, text: 'Chaque Échinoderme a +3 Éclat et +2 Mult.' }] },
 };
 
 // ── Coraux (le centre de chaque couronne) ───────────────────
@@ -295,7 +295,7 @@ export const CORALS = {
 // Bonus de couronne (sur chaque corail).
 export const CROWNS = {
   full:   { name: 'Couronne complète', icon: '💠', text: (n = 1) => `Tous les emplacements occupés : +${n} Mult.` },
-  banc:   { name: 'Banc', icon: '🎯', text: (n = 2) => `Couronne complète d’une seule famille : Mult ×${n}.` },
+  banc:   { name: 'Harmonie', icon: '🎯', text: (n = 2) => `Couronne complète d’une seule famille : Mult ×${n}.` },
   mosaic: { name: 'Mosaïque', icon: '🌈', text: (n = 1.5) => `Couronne complète, toutes familles différentes : Mult ×${String(n).replace('.', ',')}.` },
 };
 
@@ -308,18 +308,18 @@ export const ARTIFACTS = {
   nasse:     { name: 'Nasse', emoji: '🧺', price: 8, text: 'Les Crustacés ont +3 Éclat.' },
   perle:     { name: 'Perle noire', emoji: '⚫', price: 10, text: '+1 Mult sur chaque corail.' },
   conque:    { name: 'Conque', emoji: '📯', price: 9, text: 'Une Couronne complète donne +3 Mult au lieu de +1.' },
-  ecaille:   { name: 'Écaille de sirène', emoji: '🧜', price: 11, text: 'Un Banc donne Mult ×3 au lieu de ×2.' },
+  ecaille:   { name: 'Écaille de sirène', emoji: '🧜', price: 11, text: 'Une Harmonie donne Mult ×3 au lieu de ×2.' },
   prisme:    { name: 'Prisme', emoji: '🔮', price: 10, text: 'Une Mosaïque donne Mult ×2 au lieu de ×1,5.' },
   ancre:     { name: 'Ancre', emoji: '⚓', price: 9, text: 'La première marée de chaque plongée compte double.' },
   sablier:   { name: 'Sablier', emoji: '⏳', price: 9, text: 'La dernière marée possible compte double.' },
   tresor:    { name: 'Carte au trésor', emoji: '🗺️', price: 7, text: '+4 perles à chaque plongée réussie.' },
-  bourse:    { name: 'Bourse de nacre', emoji: '👝', price: 8, text: 'Après chaque plongée réussie : +1 perle par tranche de 5 perles (max +5).' },
-  bouteille: { name: 'Bouteille d’oxygène', emoji: '🧯', price: 8, text: '+1 🫧 Oxygène maximum (et vous le récupérez).' },
+  bourse:    { name: 'Bourse de nacre', emoji: '👝', price: 8, text: 'Après chaque plongée réussie : +1 perle pour 5 perles possédées (max +5).' },
+  bouteille: { name: 'Bouteille d’oxygène', emoji: '🧯', price: 8, text: '+1 🫧 Oxygène maximum, rempli aussitôt.' },
   algues:    { name: 'Forêt d’algues', emoji: '🎋', price: 8, text: 'Les Sédentaires ont +3 Éclat.' },
   trident:   { name: 'Trident', emoji: '🔱', price: 10, text: '+1 Mult par créature améliorée ★ posée sur le corail.' },
   longuevue: { name: 'Longue-vue', emoji: '🔭', price: 6, text: 'Les récompenses proposent 4 créatures au lieu de 3.' },
   lampe:     { name: 'Lampe frontale', emoji: '🔦', price: 5, text: 'Vous voyez les 3 prochaines créatures de votre banc.' },
-  trefle:    { name: 'Coquillage porte-bonheur', emoji: '🍀', price: 9, text: 'Une fois : si vous ratez une plongée de moins de 25 %, elle est réussie quand même. Puis il se brise.' },
+  trefle:    { name: 'Coquillage porte-bonheur', emoji: '🍀', price: 9, text: 'Une fois : une plongée ratée mais à au moins 75 % de l’objectif est réussie quand même. Puis il se brise.' },
 };
 
 // ── Types de cartes : l'identité visible du premier coup d'œil ──
@@ -331,8 +331,7 @@ export const CARD_TYPES = {
 };
 
 // ── Mots-clés : leur définition s'affiche dans les popups dès qu'un texte les cite.
-// `match` est une expression régulière, sensible à la casse : « Banc » (la couronne)
-// n'est pas « banc » (votre paquet). Le vocabulaire de base (Éclat, Mult) n'y figure pas.
+// `match` est une expression régulière, sensible à la casse. Le vocabulaire de base (Éclat, Mult) n'y figure pas.
 export const KEYWORDS = [
   { name: 'Sédentaire', match: 'Sédentaires?', text: 'Reste sur le récif d’une marée à l’autre, jusqu’à la fin de la plongée. Après sa première marée, elle ne peut plus être déplacée.' },
   { name: 'Éphémère', match: 'Éphémères?', text: 'Une fois jouée, elle sort de la plongée en cours. Elle revient dans votre pioche à la plongée suivante.' },
@@ -345,9 +344,9 @@ export const KEYWORDS = [
   { name: 'Voisin', match: '[Vv]oisin(?:e|s|es)?', text: 'Les deux emplacements qui touchent la créature sur sa couronne. Un Flanc ➡ touche aussi le Flanc ⬅ du corail suivant.' },
   { name: 'Opposée', match: '[Oo]pposée?s?', text: 'L’emplacement d’en face sur la même couronne : Surface ⬆ et Fond ⬇, ou les deux Flancs ⬅ ➡.' },
   { name: 'Couronne complète', match: '[Cc]ouronnes? complètes?|[Cc]ouronne est complète', text: 'Tous les emplacements d’un corail sont occupés, ce qui lui donne +1 Mult.' },
-  { name: 'Banc (couronne)', match: 'Banc(?! fantôme)', text: 'Couronne complète d’une seule famille : Mult ×2.' },
+  { name: 'Harmonie', match: 'Harmonie', text: 'Couronne complète d’une seule famille : Mult ×2.' },
   { name: 'Mosaïque', match: 'Mosaïque', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
-  { name: 'Remous', match: 'Remous', text: 'Renvoyez des créatures de votre main pour en piocher autant. Leur nombre est limité à chaque plongée.' },
+  { name: 'Remous', match: 'Remous', text: 'Défaussez des créatures de votre main pour en piocher autant. Vous avez un nombre limité de Remous par plongée.' },
   { name: 'Amélioration ★', match: 'améliorée ★|Amélioration ★|Améliorez une créature ★', text: '+50 % d’Éclat de base, définitivement.' },
   { name: 'Cnidaire', match: 'Cnidaires?', text: 'Famille 🪼 : Méduse, Physalie, Pyrosome, Polype, Siphonophore, Plancton, Éphyrule.' },
   { name: 'Échinoderme', match: 'Échinodermes?', text: 'Famille ⭐ : Étoile de mer, Oursin, Ophiure, Concombre de mer.' },
@@ -359,7 +358,7 @@ export const CONDITIONS = {
   tempete:  { name: 'La Tempête', emoji: '🌪️', text: 'Après chaque marée, votre main est emportée (défaussée).' },
   leviathan:{ name: 'Le Léviathan', emoji: '🐉', text: 'Le corail qui marque le plus ne compte pas.' },
   glace:    { name: 'Courant glacé', emoji: '🧊', text: 'Aucun Remous, et 1 créature de moins en main.' },
-  fantome:  { name: 'Banc fantôme', emoji: '👻', text: 'Aucun bonus de Couronne (complète, Banc, Mosaïque).' },
+  fantome:  { name: 'Banc fantôme', emoji: '👻', text: 'Aucun bonus de Couronne (complète, Harmonie, Mosaïque).' },
   pression: { name: 'Haute pression', emoji: '🌑', text: 'Chaque corail a −1 Mult (minimum 1).' },
   siphon:   { name: 'Le Siphon', emoji: '🌀', text: 'Une marée de moins.' },
 };
@@ -386,22 +385,22 @@ export const NODE_TYPES = {
 // des perles et un penchant (`lean`) qui oriente le tirage et les offres.
 export const DIVERS = {
   exploratrice: {
-    name: "L'Exploratrice", emoji: '🧭', text: 'Sans penchant : tout est possible. Masque de plongée.',
+    name: "L'Exploratrice", emoji: '🧭', text: 'Tirages sans orientation. Départ : Masque de plongée.',
     artifacts: ['masque'], pearls: 4, lean: [],
     unlock: null,
   },
   biologiste: {
-    name: 'Le Biologiste', emoji: '🔬', text: 'Penche vers les Poissons. Hameçon doré.',
+    name: 'Le Biologiste', emoji: '🔬', text: 'Tirages orientés vers les Poissons. Départ : Hameçon doré.',
     artifacts: ['hamecon'], pearls: 2, lean: ['poisson'],
     unlock: { zone: 2, text: 'Atteindre le Tombant' },
   },
   chasseuse: {
-    name: "La Chasseuse d'épaves", emoji: '🏴‍☠️', text: 'Penche vers les Crustacés et Mollusques. Carte au trésor.',
+    name: "La Chasseuse d'épaves", emoji: '🏴‍☠️', text: 'Tirages orientés vers les Crustacés et les Mollusques. Départ : Carte au trésor.',
     artifacts: ['tresor'], pearls: 10, lean: ['crustace', 'mollusque'],
     unlock: { boss: 1, text: 'Vaincre un gardien' },
   },
   naturaliste: {
-    name: 'La Naturaliste', emoji: '🌿', text: 'Penche vers les Sédentaires et Échinodermes. Forêt d’algues.',
+    name: 'La Naturaliste', emoji: '🌿', text: 'Tirages orientés vers les Sédentaires et les Échinodermes. Départ : Forêt d’algues.',
     artifacts: ['algues'], pearls: 4, lean: ['sed', 'echino'],
     unlock: { zone: 3, text: 'Atteindre les Abysses' },
   },

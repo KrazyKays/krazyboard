@@ -188,15 +188,28 @@ h2, h3, p { margin: 0; }
 /* Récif : la taille d'une case dépend de la place et du nombre de coraux */
 .reef { position: relative; flex: 1; min-height: 0; }
 .reef-row { height: 100%; container-type: size; display: flex; align-items: center; justify-content: center; }
-.reef-row > * { --cell: min(100px, calc((100cqh - 42px) / 2.7), calc((100cqw / var(--n) - 26px) / 3)); }
+.reef-row > * { --cell: min(100px, calc((100cqh - 42px) / 2.7), calc((100cqw / var(--n) - 34px) / 3)); }
 .coral-wrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 0 0 auto; }
+.coral-wrap.has-bridge { margin-right: 34px; }
 .coral { position: relative; display: grid; gap: 3px; font-size: max(9px, calc(var(--cell) * .14));
   grid-template-columns: repeat(3, var(--cell)); grid-template-rows: calc(var(--cell) * .85) var(--cell) calc(var(--cell) * .85);
   grid-template-areas: ". N ." "W core E" ". S ."; }
-.bridge { flex: 0 0 16px; align-self: center; margin-bottom: 28px; text-align: center; color: rgba(255,255,255,.2); font-weight: 800; }
-.bridge.on { color: var(--accent); text-shadow: 0 0 8px var(--accent); }
+/* Pont : un lien qui part du Flanc ➡ et arrive au Flanc ⬅ du corail suivant. */
+.bridge { --link: var(--accent2); position: absolute; left: 100%; top: 50%; width: 34px; height: 30px; transform: translateY(-50%); z-index: 1;
+  display: flex; align-items: center; justify-content: center; cursor: help; }
+.bridge::before { content: ""; position: absolute; left: -2px; right: -2px; top: 50%; margin-top: -2px; border-top: 4px dashed var(--link); opacity: .75; }
+.b-ic { position: relative; width: 22px; height: 22px; display: grid; place-items: center; font-size: 12px; line-height: 1; border-radius: 50%;
+  background: #0b3350; border: 2px solid var(--link); }
+.bridge.half::before { opacity: 1; }
+.bridge.half .b-ic { box-shadow: 0 0 8px var(--link); }
+.bridge.on { --link: var(--accent); }
+.bridge.on::before { opacity: 1; border-top-style: solid; box-shadow: 0 0 10px var(--link); }
+.bridge.on .b-ic { background: var(--link); box-shadow: 0 0 12px var(--link); animation: bridgeon 1s infinite alternate; }
+@keyframes bridgeon { to { box-shadow: 0 0 3px var(--link); } }
 .slot { border: 2px dashed rgba(255,255,255,.2); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; position: relative; padding: 1px; min-width: 0; min-height: 0; }
+.slot.bridged.s-E { border-right: 3px solid var(--accent2); }
+.slot.bridged.s-W { border-left: 3px solid var(--accent2); }
 .slot.s-N { grid-area: N; } .slot.s-S { grid-area: S; } .slot.s-W { grid-area: W; } .slot.s-E { grid-area: E; }
 .slot .ph { opacity: .35; font-size: 1.3em; line-height: 1; } .slot .lb { opacity: .35; }
 .slot.full { border-style: solid; border-color: var(--fam); background: color-mix(in srgb, var(--fam) 22%, rgba(0,0,0,.25)); }
