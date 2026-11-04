@@ -133,6 +133,17 @@ h2, h3, p { margin: 0; }
 #zoom { position: fixed; z-index: 70; pointer-events: none; --cardH: 270px; --cardW: 210px; --cardFont: 18px; }
 #zoom .card { box-shadow: 0 10px 34px rgba(0,0,0,.65); }
 
+/* Infobulles */
+#tip { position: fixed; z-index: 80; pointer-events: none; width: max-content; max-width: min(320px, calc(100vw - 16px));
+  background: #0c3049; border: 1px solid var(--accent); border-radius: 10px; padding: 6px 11px; font-size: .84rem; line-height: 1.3;
+  box-shadow: 0 8px 24px rgba(0,0,0,.6), 0 0 12px rgba(62,230,193,.25); }
+#tip::after { content: ""; position: absolute; left: var(--ax); bottom: -6px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg);
+  background: inherit; border: solid var(--accent); border-width: 0 1px 1px 0; }
+#tip.below::after { bottom: auto; top: -6px; border-width: 1px 0 0 1px; }
+.tip-h { font-weight: 800; color: var(--accent2); }
+.tip-b { color: var(--ink); }
+.tip-l { margin-top: 3px; padding-top: 3px; border-top: 1px solid var(--line); color: #cfe7f5; }
+
 /* HUD de plongée */
 .hud { flex: none; display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 3px 12px; }

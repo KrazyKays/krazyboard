@@ -69,9 +69,9 @@ function creatureCard(c, o = {}) {
   const tags = [def.allFam || c.mut === 'polyvalent' ? 'Toutes familles' : F.name, def.sed && 'Sédentaire', def.place && 'Pose', RARITY[def.rar].name]
     .filter(Boolean).join(' · ');
   const hatch = def.evolve && c.xp ? ` (${c.xp}/${def.evolve.after})` : '';
-  const hover = o.mini ? 'data-zoom' : `title="${esc(`${def.name} — ${def.text}`)}"`;
+  const hover = o.mini ? 'data-zoom' : `data-tip="${esc(`${def.name} — ${def.text}`)}"`;
   return `<div class="${cls}" ${act} data-t="${c.t}" style="--fam:${F.color}" ${hover}>
-    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span>${M ? `<span class="c-mut" title="${esc(`${M.name} — ${M.text}`)}">${M.emoji}</span>` : ''}<span class="c-nums">${c.mbonus ? `<span class="c-pts mult" title="Mult permanent">+${c.mbonus}M</span>` : ''}<span class="c-pts" title="Éclat de base">${pts}</span></span></div>
+    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span>${M ? `<span class="c-mut" data-tip="${esc(`${M.name} — ${M.text}`)}">${M.emoji}</span>` : ''}<span class="c-nums">${c.mbonus ? `<span class="c-pts mult" data-tip="Mult permanent">+${c.mbonus}M</span>` : ''}<span class="c-pts" data-tip="Éclat de base">${pts}</span></span></div>
     <div class="c-em">${def.emoji}</div>
     <div class="c-nm">${def.name}${stars}</div>
     <div class="c-tx">${def.text}${hatch}${M ? `<div class="c-mutx">${M.emoji} <b>${M.name}</b> : ${M.text}</div>` : ''}</div>
@@ -92,8 +92,8 @@ function ecoChips(r, onlyActive = false) {
   return E.ecoStatus(r).filter((e) => !onlyActive || e.tier).map((e) => {
     const goal = e.next ? e.next.n : e.tier.n;
     const lines = e.eco.tiers.map((t) => `${t.n} : ${t.text}`).join(' | ');
-    const tip = esc(`${e.eco.name} — ${FAMILIES[e.f].name}s dans votre banc. ${lines}`);
-    return `<span class="eco ${e.tier ? 'on' : ''}" title="${tip}">${FAMILIES[e.f].icon}${onlyActive ? ` ${e.eco.name}` : ` ${e.n}/${goal}`}</span>`;
+    const tip = esc(`${e.eco.name} — ${FAMILIES[e.f].name}s dans votre banc. | ${lines}`);
+    return `<span class="eco ${e.tier ? 'on' : ''}" data-tip="${tip}">${FAMILIES[e.f].icon}${onlyActive ? ` ${e.eco.name}` : ` ${e.n}/${goal}`}</span>`;
   }).join('');
 }
 
@@ -101,9 +101,9 @@ function coralCard(t, o = {}) {
   const k = CORALS[t];
   const act = o.action ? `data-action="${o.action}" data-id="${o.id ?? t}"` : '';
   const lvl = o.lvl ? ` <span class="star">+${o.lvl}</span>` : '';
-  const hover = o.mini ? 'data-zoom' : `title="${esc(`${k.name} — ${k.text}`)}"`;
+  const hover = o.mini ? 'data-zoom' : `data-tip="${esc(`${k.name} — ${k.text}`)}"`;
   return `<div class="card coral-card r-${k.rar} ${o.pick ? 'pick' : ''} ${o.mini ? 'mini' : ''}" ${act} style="--fam:${k.color}" ${hover}>
-    ${o.mini ? zoomTpl(coralCard(t, { lvl: o.lvl })) : ''}<div class="c-top"><span class="c-fam">🪸</span><span class="c-pts mult" title="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
+    ${o.mini ? zoomTpl(coralCard(t, { lvl: o.lvl })) : ''}<div class="c-top"><span class="c-fam">🪸</span><span class="c-pts mult" data-tip="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
     <div class="c-em">${k.emoji}</div>
     <div class="c-nm">${k.name}${lvl}</div>
     <div class="c-tx">${k.text}</div>
@@ -115,16 +115,16 @@ function artifactCard(a, extra = '') {
   const x = ARTIFACTS[a];
   return `<div class="artifact"><div class="a-em">${x.emoji}</div><div class="a-nm">${x.name}</div><div class="a-tx">${x.text}</div>${extra}</div>`;
 }
-const artifactChip = (a) => `<span class="chip" title="${esc(`${ARTIFACTS[a].name} — ${ARTIFACTS[a].text}`)}">${ARTIFACTS[a].emoji}</span>`;
-const condChip = (k) => `<span class="chip cond" title="${esc(CONDITIONS[k].text)}">${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</span>`;
-const oxygen = (r) => `<span class="o2" title="Oxygène : vos points de vie. Une plongée ratée coûte 1 🫧.">${'🫧'.repeat(Math.max(0, r.oxygen))}<span class="o2-off">${'🫧'.repeat(Math.max(0, r.oxygenMax - r.oxygen))}</span></span>`;
+const artifactChip = (a) => `<span class="chip" data-tip="${esc(`${ARTIFACTS[a].name} — ${ARTIFACTS[a].text}`)}">${ARTIFACTS[a].emoji}</span>`;
+const condChip = (k) => `<span class="chip cond" data-tip="${esc(CONDITIONS[k].text)}">${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</span>`;
+const oxygen = (r) => `<span class="o2" data-tip="Oxygène : vos points de vie. Une plongée ratée coûte 1 🫧.">${'🫧'.repeat(Math.max(0, r.oxygen))}<span class="o2-off">${'🫧'.repeat(Math.max(0, r.oxygenMax - r.oxygen))}</span></span>`;
 
 function topbar(extra = '') {
   const r = S.run;
   const z = ZONES[r.zone];
   return `<header class="topbar">
     <div class="tb-l"><b>${z.name}</b> <span class="muted">${z.depth}${r.depth ? ` · ${DEPTHS[r.depth].name}` : ''}${r.daily ? ' · Plongée du jour' : ''}</span>${extra}</div>
-    <div class="tb-c">${oxygen(r)} <span class="pearls" title="Perles">🦪 ${r.pearls}</span></div>
+    <div class="tb-c">${oxygen(r)} <span class="pearls" data-tip="Perles">🦪 ${r.pearls}</span></div>
     <div class="tb-r"><span class="arts">${r.artifacts.map(artifactChip).join('')}</span>
       <button class="btn tiny" data-action="bag">Banc (${r.bag.length})</button>
       <button class="btn tiny" data-action="rules">?</button>
@@ -148,7 +148,7 @@ function renderTitle() {
       <div class="tx">${ok ? v.text : v.unlock.text}</div></button>`;
   }).join('');
   const depths = DEPTHS.map((dp, i) => (i <= meta.depth
-    ? `<button class="btn tiny ${S.depth === i ? 'primary' : ''}" data-action="depth" data-i="${i}" title="${esc(dp.text)}">${i === 0 ? 'Surface' : i}</button>` : '')).join('');
+    ? `<button class="btn tiny ${S.depth === i ? 'primary' : ''}" data-action="depth" data-i="${i}" data-tip="${esc(dp.text)}">${i === 0 ? 'Surface' : i}</button>` : '')).join('');
   const daily = meta.daily[today()];
   const firstTime = !meta.tuto && !meta.runs && !hasSave();
   app.innerHTML = `<div class="title-screen">
@@ -164,7 +164,7 @@ function renderTitle() {
       ${hasSave() ? '<button class="btn primary" data-action="continue">Reprendre l’expédition</button>' : ''}
       ${firstTime ? '<button class="btn primary" data-action="tuto">Tutoriel (conseillé)</button>' : ''}
       <button class="btn ${hasSave() || firstTime ? '' : 'primary'}" data-action="newrun">Nouvelle expédition</button>
-      <button class="btn" data-action="daily" title="Même graine pour tout le monde aujourd’hui">📅 Plongée du jour${daily ? ` (${daily.best})` : ''}</button>
+      <button class="btn" data-action="daily" data-tip="Même graine pour tout le monde aujourd’hui">📅 Plongée du jour${daily ? ` (${daily.best})` : ''}</button>
     </div>
     <div class="row">
       ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
@@ -197,10 +197,10 @@ function renderMap() {
     const isAv = av.includes(n);
     const cur = r.pos && r.pos.row === n.row && r.pos.lane === n.lane;
     const cls = ['node', `t-${n.type}`, isAv && 'av', n.done && 'done', cur && 'cur'].filter(Boolean).join(' ');
-    const tip = `${T.name} — ${T.text}${n.cond ? ' ' + n.cond.map((k) => `[${CONDITIONS[k].name} : ${CONDITIONS[k].text}]`).join(' ') : ''}${['dive', 'elite', 'boss'].includes(n.type) ? ` Objectif : ${fmt(E.targetFor(r, n))}.` : ''}`;
+    const tip = [`${T.name} — ${T.text}`, ...(n.cond || []).map((k) => `${CONDITIONS[k].emoji} ${CONDITIONS[k].name} : ${CONDITIONS[k].text}`),
+      ...(['dive', 'elite', 'boss'].includes(n.type) ? [`🎯 Objectif : ${fmt(E.targetFor(r, n))}`] : [])].join(' | ');
     const rad = n.type === 'boss' ? 28 : 21;
-    nodes += `<g class="${cls}" ${isAv ? `data-action="node" data-row="${n.row}" data-lane="${n.lane}"` : ''}>
-      <title>${esc(tip)}</title>
+    nodes += `<g class="${cls}" data-tip="${esc(tip)}" ${isAv ? `data-action="node" data-row="${n.row}" data-lane="${n.lane}"` : ''}>
       <circle cx="${X(n.lane)}" cy="${Y(n.row)}" r="${rad}"/>
       <text x="${X(n.lane)}" y="${Y(n.row) + 1}" font-size="${n.type === 'boss' ? 26 : 19}">${n.done && !cur ? '✓' : T.icon}</text></g>`;
   }));
@@ -224,7 +224,7 @@ function renderMap() {
           ${boss.cond.map((k) => `<div class="bc-c"><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
           <div class="muted">Rater le gardien met fin à l’expédition. Le vaincre : nouveau corail et oxygène rechargé.</div>
         </div>
-        <div class="legend">${Object.entries(NODE_TYPES).map(([, t]) => `<span title="${esc(t.text)}">${t.icon} ${t.name}</span>`).join('')}</div>
+        <div class="legend">${Object.entries(NODE_TYPES).map(([, t]) => `<span data-tip="${esc(t.text)}">${t.icon} ${t.name}</span>`).join('')}</div>
         <h3>Votre récif</h3>
         <div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div>
         <h3>Écosystèmes de votre banc</h3>
@@ -247,7 +247,7 @@ function renderDive() {
   const tides = Array.from({ length: d.tidesMax }, (_, i) => {
     const n = i + 1;
     const st = n < d.tide || (n === d.tide && !placing) ? 'used' : n === d.tide ? 'now' : '';
-    return `<span class="tide ${st}" title="${d.history[i] !== undefined ? `Marée ${n} : ${fmt(d.history[i])}` : `Marée ${n}`}">🌊</span>`;
+    return `<span class="tide ${st}" data-tip="${d.history[i] !== undefined ? `Marée ${n} : ${fmt(d.history[i])}` : `Marée ${n}`}">🌊</span>`;
   }).join('');
   const hud = `<section class="hud">
     <div class="h-l"><div class="dname">${title} <span class="muted">· rangée ${node.row + 1}</span></div>
@@ -256,9 +256,9 @@ function renderDive() {
       <div class="bar"><div class="fill ${d.score >= d.target ? 'ok' : ''}" style="width:${pct}%"></div><div class="ghost" style="left:${pct}%;width:${proj}%"></div></div>
       <div class="sc"><b data-count="${d.score}">${fmt(d.score)}</b> / ${fmt(d.target)}${placing && info.total ? ` <span class="proj">+${fmt(info.total)}</span>` : ''}</div>
     </div>
-    <div class="h-r"><div class="tides" title="Marées : nombre de fois où votre récif marque">${tides}</div>
-      <div class="stats"><span title="Remous : défaussez des créatures de votre main pour en piocher autant">🌀 ${d.remous}</span>
-      <span title="Créatures restantes dans la pioche / défausse">🂠 ${d.draw.length} · ♻ ${d.discard.length}</span></div></div>
+    <div class="h-r"><div class="tides" data-tip="Marées : nombre de fois où votre récif marque">${tides}</div>
+      <div class="stats"><span data-tip="Remous : défaussez des créatures de votre main pour en piocher autant">🌀 ${d.remous}</span>
+      <span data-tip="Créatures restantes dans la pioche / défausse">🂠 ${d.draw.length} · ♻ ${d.discard.length}</span></div></div>
   </section>`;
 
   // Récif
@@ -271,8 +271,8 @@ function renderDive() {
       const def = CREATURES[c.t];
       const bk = info.byKey[key] || {};
       const F = FAMILIES[def.fam];
-      const badges = [bk.silenced && '<span class="bdg sil" title="Réduit au silence">🔇</span>', bk.times > 1 && '<span class="bdg x2">×2</span>',
-        bk.mult || bk.xm > 1 ? `<span class="bdg mul ${bk.mult < 0 ? 'neg' : ''}">${[bk.mult > 0 ? `+${bk.mult}M` : bk.mult < 0 ? `−${-bk.mult}M` : '', bk.xm > 1 ? `×${bk.xm}M` : ''].filter(Boolean).join(' ')}</span>` : '', c.mut && `<span class="bdg mut" title="${esc(`${MUTATIONS[c.mut].name} — ${MUTATIONS[c.mut].text}`)}">${MUTATIONS[c.mut].emoji}</span>`, cell.lock && '<span class="bdg lock" title="Ne peut plus être déplacé">🔒</span>'].filter(Boolean).join('');
+      const badges = [bk.silenced && '<span class="bdg sil" data-tip="Réduit au silence">🔇</span>', bk.times > 1 && '<span class="bdg x2">×2</span>',
+        bk.mult || bk.xm > 1 ? `<span class="bdg mul ${bk.mult < 0 ? 'neg' : ''}">${[bk.mult > 0 ? `+${bk.mult}M` : bk.mult < 0 ? `−${-bk.mult}M` : '', bk.xm > 1 ? `×${bk.xm}M` : ''].filter(Boolean).join(' ')}</span>` : '', c.mut && `<span class="bdg mut" data-tip="${esc(`${MUTATIONS[c.mut].name} — ${MUTATIONS[c.mut].text}`)}">${MUTATIONS[c.mut].emoji}</span>`, cell.lock && '<span class="bdg lock" data-tip="Ne peut plus être déplacé">🔒</span>'].filter(Boolean).join('');
       const can = placing && !cell.lock;
       return `<div class="slot s-${s} full ${can ? 'movable' : ''}" style="--fam:${F.color}" ${can ? `data-action="unplace" data-ci="${ci}" data-s="${s}"` : ''} data-zoom>
         ${zoomTpl(creatureCard(c))}<span class="em">${def.emoji}</span><span class="nm">${def.name}${c.star ? ' ★' : ''}</span>
@@ -280,14 +280,14 @@ function renderDive() {
     }
     if (E.isBlocked(r, ci, s)) {
       const kr = d.blocked.includes(key);
-      return `<div class="slot s-${s} blocked" title="${kr ? 'Bloqué par le Kraken pour cette marée' : 'Emplacement inexistant sur ce corail'}">${kr ? '🦑' : '✖'}</div>`;
+      return `<div class="slot s-${s} blocked" data-tip="${kr ? 'Bloqué par le Kraken pour cette marée' : 'Emplacement inexistant sur ce corail'}">${kr ? '🦑' : '✖'}</div>`;
     }
     const t = placing && sel && E.canPlace(r, sel, ci, s);
     return `<div class="slot s-${s} ${t ? 'target' : ''}" ${t ? `data-action="place" data-ci="${ci}" data-s="${s}"` : ''}>
       <span class="ph">${SLOT_ICON[s]}</span><span class="lb">${SLOT_LABEL[s]}</span></div>`;
   };
   // Buffs du corail : une pastille par bonus, avec sa valeur (+1M, ×2M…).
-  const buffChip = (b) => `<span class="crown ${b.hint ? 'hint' : ''} ${b.neg ? 'neg' : ''}" title="${esc(`${b.name} — ${b.text}`)}">${b.icon}<span class="cn"> ${esc(b.name)}</span> <span class="bv ${b.x ? 'x' : ''}">${b.val}</span></span>`;
+  const buffChip = (b) => `<span class="crown ${b.hint ? 'hint' : ''} ${b.neg ? 'neg' : ''}" data-tip="${esc(`${b.name} — ${b.text}`)}">${b.icon}<span class="cn"> ${esc(b.name)}</span> <span class="bv ${b.x ? 'x' : ''}">${b.val}</span></span>`;
   const corals = r.corals.map((c, ci) => {
     const k = CORALS[c.t];
     const ci2 = info.corals[ci];
@@ -295,7 +295,7 @@ function renderDive() {
     const crownB = shown.filter((b) => b.crown).map(buffChip).join('');
     const otherB = shown.filter((b) => !b.crown).map(buffChip).join('');
     const bridge = ci < r.corals.length - 1
-      ? `<div class="bridge ${d.board[ci].E && d.board[ci + 1].W ? 'on' : ''}" title="Pont : le Flanc ➡ et le Flanc ⬅ du corail suivant sont voisins">⋯</div>` : '';
+      ? `<div class="bridge ${d.board[ci].E && d.board[ci + 1].W ? 'on' : ''}" data-tip="Pont : le Flanc ➡ et le Flanc ⬅ du corail suivant sont voisins">⋯</div>` : '';
     return `<div class="coral-wrap"><div class="coral" style="--fam:${k.color}">
       ${slotHTML(ci, 'N')}${slotHTML(ci, 'W')}
       <div class="core" data-zoom>${zoomTpl(coralCard(c.t, { lvl: c.lvl }))}<div class="em">${k.emoji}</div><div class="nm">${k.name}</div><div class="mb">Mult ${k.mult + c.lvl}</div></div>
@@ -303,7 +303,7 @@ function renderDive() {
       <div class="crowns tl">${crownB}</div><div class="crowns tr">${otherB}</div>
     </div>
     <div class="formula ${ci2.ignored ? 'ignored' : ''} ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35 + 0.15}s">
-      <span class="ecl" title="Éclat : somme des créatures">${fmt(ci2.eclat)}</span> × <span class="mlt" title="Mult total">${ci2.multTot}</span> = <b>${fmt(ci2.score)}</b>
+      <span class="ecl" data-tip="Éclat : somme des créatures">${fmt(ci2.eclat)}</span> × <span class="mlt" data-tip="Mult total">${ci2.multTot}</span> = <b>${fmt(ci2.score)}</b>
       ${ci2.ignored ? '<span class="ign">🐉 ignoré</span>' : ''}
     </div></div>${bridge}`;
   }).join('');
@@ -338,7 +338,7 @@ function renderDive() {
     return creatureCard(c, { action: placing ? 'hand' : '', sel: !ui.remous && sel === id, pick: ui.remous, chosen });
   }).join('');
   const peek = E.has(r, 'lampe') && d.draw.length
-    ? `<div class="peek">🔦 Prochaines : ${d.draw.slice(0, 3).map((id) => `<span title="${esc(CREATURES[E.inst(r, id).t].name)}">${CREATURES[E.inst(r, id).t].emoji}</span>`).join(' ')}</div>` : '';
+    ? `<div class="peek">🔦 Prochaines : ${d.draw.slice(0, 3).map((id) => `<span data-tip="${esc(CREATURES[E.inst(r, id).t].name)}">${CREATURES[E.inst(r, id).t].emoji}</span>`).join(' ')}</div>` : '';
   const handSec = `<section class="hand"><div class="zone-label">Main <span class="muted">${d.hand.length} · pioche jusqu’à ${d.handSize} à chaque marée</span>${peek}</div>
     <div class="hand-row" style="--n:${d.hand.length}">${hand || '<div class="empty-note">Main vide.</div>'}</div></section>`;
 
@@ -676,15 +676,56 @@ function showZoom(el) {
   zoomEl.style.left = `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`;
   zoomEl.style.top = `${top}px`;
 }
+
+// ── Infobulles : instantanées, « Titre — texte | ligne | ligne » ─
+const tipEl = document.createElement('div');
+tipEl.id = 'tip';
+tipEl.setAttribute('role', 'tooltip');
+tipEl.hidden = true;
+document.body.append(tipEl);
+let tipFor = null;
+function hideTip() { tipEl.hidden = true; tipFor = null; }
+function showTip(el) {
+  if (el === tipFor) return;
+  tipFor = el;
+  const part = (cls, text) => Object.assign(document.createElement('div'), { className: cls, textContent: text });
+  const [first, ...lines] = el.dataset.tip.split(' | ');
+  const cut = first.indexOf(' — ');
+  tipEl.replaceChildren(
+    ...(cut < 0 ? [part('tip-b', first)] : [part('tip-h', first.slice(0, cut)), part('tip-b', first.slice(cut + 3))]),
+    ...lines.map((l) => part('tip-l', l)),
+  );
+  tipEl.hidden = false;
+  const r = el.getBoundingClientRect();
+  const w = tipEl.offsetWidth; const h = tipEl.offsetHeight;
+  const above = r.top - h - 10 >= 8;
+  const top = above ? r.top - h - 10 : r.bottom + 10;
+  const cx = r.left + r.width / 2;
+  const left = Math.max(8, Math.min(cx - w / 2, innerWidth - w - 8));
+  tipEl.classList.toggle('below', !above);
+  tipEl.style.left = `${left}px`;
+  tipEl.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
+  tipEl.style.setProperty('--ax', `${Math.max(14, Math.min(cx - left, w - 14))}px`);
+}
+function hideHover() { hideZoom(); hideTip(); }
 document.addEventListener('mouseover', (ev) => {
-  const el = ev.target.closest('[data-zoom]');
-  if (!el) hideZoom();
-  else if (el !== zoomFor) showZoom(el);
+  const zoom = ev.target.closest('[data-zoom]');
+  let tip = ev.target.closest('[data-tip]');
+  // Sur une mini-carte, l'aperçu agrandi dit déjà tout ; une pastille posée sur une case garde sa bulle.
+  if (tip && zoom && (!zoom.contains(tip) || zoom.matches('.card.mini'))) tip = null;
+  // Une carte entière affiche déjà son texte : la bulle ne sert que s'il est coupé.
+  if (tip && tip.matches('.card') && tip.scrollHeight <= tip.clientHeight) tip = null;
+  if (tip) { hideZoom(); showTip(tip); return; }
+  hideTip();
+  if (!zoom) hideZoom();
+  else if (zoom !== zoomFor) showZoom(zoom);
 });
+document.documentElement.addEventListener('mouseleave', hideHover);
+document.addEventListener('scroll', hideHover, true);
 
 // ── Rendu ───────────────────────────────────────────────────
 function render() {
-  hideZoom();
+  hideHover();
   const r = S.run;
   if (S.screen === 'title' || !r) renderTitle();
   else ({ draft: renderDraft, map: renderMap, dive: renderDive, reward: renderReward, shop: renderShop, event: renderEvent, rest: renderRest, end: renderEnd })[r.phase]();
