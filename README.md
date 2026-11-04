@@ -1,9 +1,8 @@
 # <img src="favicon.svg" width="32" alt=""> Krazy Sea
 
-Jeu de cartes **solo roguelite** jouable dans le navigateur, inspiré des mécaniques de *Forêt Mixte*
-(cartes à poser autour d'un « arbre », cartes à deux moitiés, clairière partagée, fin de partie déclenchée
-par des cartes cachées dans la pioche) mais transposé **sous la mer** : les arbres deviennent des coraux,
-la clairière devient le Courant, les hivers deviennent des Marées.
+**Roguelike solo** jouable dans le navigateur : composez des **couronnes de créatures** autour de vos coraux,
+déclenchez des combos à chaque marée, choisissez votre route à travers trois zones et affrontez les gardiens
+des profondeurs.
 
 100 % statique (HTML / CSS / JavaScript modules, aucune dépendance, aucune compilation) : parfait pour GitHub Pages.
 
@@ -13,35 +12,53 @@ la clairière devient le Courant, les hivers deviennent des Marées.
   (les modules ES ne se chargent pas en `file://`).
 - En ligne : voir « Déploiement » ci-dessous.
 
-## Règles en bref
+## Le cœur du jeu : la couronne
 
-- **Un tour = une action** : *piocher 2 cartes* (depuis la pioche et/ou le Courant) **ou** *jouer une carte*
-  en défaussant autant de cartes que son coût dans le Courant.
-- **Coraux** : ils forment votre récif. Chacun offre 4 emplacements : Surface ⬆, Fond ⬇, deux Flancs ⬅➡.
-- **Cartes créatures** : deux créatures par carte, vous n'en jouez qu'une. Certaines sont empilables.
-- **Symbiose ✨** : la couleur de coin d'une carte créature = une famille de corail. Posée sur ce corail → piochez 1 carte.
-- **Épave ⚓** : certaines créatures y coulent des cartes, 1 pt chacune.
-- **Courant** : une carte de la pioche le rejoint à chaque fin de tour ; à 10 cartes il déborde et se vide.
-- **Marées 🌊** : cachées dans le dernier tiers de la pioche ; à la dernière, la plongée s'arrête et le récif est compté.
+Chaque **corail** est le centre d'une couronne de 4 emplacements : Surface ⬆, Fond ⬇ et deux Flancs ⬅ ➡.
+À chaque **marée**, vous piochez des créatures dans votre **banc** et vous les placez autour de vos coraux.
+Quand vous lancez la marée, chaque corail marque :
 
-## Côté roguelite
+> **Éclat** (somme des créatures posées) × **Mult** (celui du corail, plus les bonus)
 
-- **6 plongées** à objectif croissant (28 → 76 pts). Un échec met fin à l'expédition.
-- À partir de la 2ᵉ plongée, des **conditions** aléatoires compliquent la partie (Courant fort, Eaux troubles, Marée haute…).
-- Après chaque réussite : des **perles** (bonus si vous dépassez l'objectif), **une carte au choix** parmi 3,
-  puis le **Comptoir** : acheter des cartes (dont des rares ★), des **trésors** aux effets passifs, ou retirer une carte.
-- **Méta-progression** : de nouveaux plongeurs de départ se débloquent en allant plus loin.
-- L'expédition en cours est sauvegardée automatiquement (localStorage).
+Toute la profondeur tactique vient des **associations** :
+
+- **Voisins** : chaque emplacement touche ses deux voisins, et la case d'en face est son **opposée**
+  (la Crevette nettoyeuse donne +3 à ses voisins, la Physalie leur retire de l'Éclat, le Calmar copie la créature opposée…).
+- **Ponts** : le Flanc ➡ d'un corail touche le Flanc ⬅ du corail suivant.
+- **Position** : certaines créatures brillent en Surface ou au Fond (Raie manta, Homard, Étoile de mer).
+- **Couronnes** : 💠 complète (+1 Mult) · 🎯 **Banc**, une seule famille (Mult ×2) · 🌈 **Mosaïque**, que des familles différentes (Mult ×1,5).
+- **Coraux** : chacun a son propre penchant (l'Anémone renforce les Poissons, la Gorgone aime être bien remplie,
+  le Corail noir n'a que 3 emplacements mais un Mult de 5…).
+
+Une plongée = atteindre un **objectif** en 4 marées, avec quelques **Remous** 🌀 (défausser pour repiocher).
+Les créatures non posées restent en main, et les **Sédentaires** restent sur le récif d'une marée à l'autre.
+
+## Le côté roguelike
+
+- **Carte à embranchements** pour chacune des 3 zones (Lagon → Tombant → Abysses) : 🐟 plongées, 💀 plongées
+  périlleuses (avec condition, rapportent un artefact), ❓ épaves (événements à choix), ⚓ comptoir, 🌱 nurserie.
+- **Gardiens** 👑 annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
+  son récif en conséquence. Le vaincre fait pousser un **nouveau corail**.
+- **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien y met fin aussitôt.
+- **Économie** : des perles pour chaque victoire, et un bonus pour chaque marée non utilisée.
+- **Changements permanents** : créatures qui grandissent (Poisson-lune, Bernard-l'ermite), prédateurs qui dévorent
+  leurs voisins pour toujours (Orque), améliorations ★ à la nurserie, coraux fortifiés, banc à affiner au comptoir.
+- **19 artefacts** qui changent les règles (Boussole, Écaille de sirène, Sablier, Bourse de nacre…).
+- **Méta-progression** : 4 plongeurs avec leur banc de départ, 5 niveaux de **Profondeur** (difficulté),
+  un **bestiaire** à compléter et une **plongée du jour** (même graine pour tout le monde).
+- Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage).
 
 ## Structure
 
 ```
 index.html        page unique
 style.css         styles
-js/data.js        coraux, créatures, trésors, conditions, plongées (facile à équilibrer)
-js/engine.js      règles du jeu, indépendantes de l'affichage
+js/data.js        créatures, coraux, artefacts, conditions, plongeurs, objectifs (tout l'équilibrage)
+js/engine.js      règles du jeu, carte, plongées, score, boutique, événements (sans affichage)
 js/ui.js          rendu et interactions
 ```
+
+Ajouter `?debug` à l'URL expose `S`, `E` et `render` dans la console.
 
 ## Déploiement GitHub Pages
 

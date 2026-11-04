@@ -1,361 +1,704 @@
 // ─────────────────────────────────────────────────────────────
-//  Krazy Sea — moteur de jeu (indépendant de l'affichage)
+//  Krazy Sea — moteur de jeu (sans affichage, entièrement déterministe
+//  à partir de la graine de l'expédition)
 // ─────────────────────────────────────────────────────────────
 import {
-  CORALS, SPECIES, FAMILIES, STARTER, POOL_COMMON, POOL_RARE,
-  TREASURES, MODIFIERS, DIVES, DIVERS,
+  SLOTS, RING, OPPOSITE, CREATURES, CORALS, ARTIFACTS, CONDITIONS, ZONES,
+  ROWS_PER_ZONE, DIVERS, BASE, RARITY,
 } from './data.js';
 
-let UID = 1;
-const uid = () => UID++;
-
-export function shuffle(a) {
+// ── Aléatoire à graine (mulberry32), état stocké dans l'expédition ──
+export function rnd(run) {
+  let t = (run.rs = (run.rs + 0x6D2B79F5) >>> 0);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const ri = (run, n) => Math.floor(rnd(run) * n);
+const pick = (run, a) => a[ri(run, a.length)];
+export function shuffle(run, a) {
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = ri(run, i + 1);
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
-const pick = (a) => a[Math.floor(Math.random() * a.length)];
-
-// Une carte « gabarit » de la collection du joueur (persistante sur l'expédition).
-export function makeTemplate(base) {
-  const t = { ...base, id: uid() };
-  if (t.kind === 'species') t.color = t.color || pick(FAMILIES);
-  return t;
+function weighted(run, entries) { // [[valeur, poids], …]
+  const tot = entries.reduce((s, e) => s + e[1], 0);
+  let r = rnd(run) * tot;
+  for (const [v, w] of entries) { if ((r -= w) < 0) return v; }
+  return entries[entries.length - 1][0];
+}
+export function seedFrom(str) {
+  let h = 2166136261;
+  for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return h >>> 0;
 }
 
-// ── Expédition ───────────────────────────────────────────────
-export function newRun(diverId) {
+export const has = (run, a) => run.artifacts.includes(a);
+const nid = (run) => run.nextId++;
+export const inst = (run, id) => run.bag.find((c) => c.id === id);
+export const defOf = (run, id) => CREATURES[inst(run, id).t];
+
+// ── Expédition ──────────────────────────────────────────────
+export function newRun({ diverId = 'exploratrice', depth = 0, seed, daily = false } = {}) {
   const diver = DIVERS[diverId];
-  const collection = [...STARTER, ...diver.extra].map(makeTemplate);
-  return {
-    diverId, collection,
-    treasures: [...diver.treasures],
-    pearls: 0, diveIndex: 0, scores: [], removeCost: 3,
+  const s = seed ?? ((Math.random() * 2 ** 32) >>> 0);
+  const run = {
+    v: 2, seed: s, rs: s, nextId: 1, diverId, depth, daily,
+    bag: [], corals: [], artifacts: [...diver.artifacts],
+    pearls: diver.pearls, oxygen: 0, oxygenMax: BASE.oxygen,
+    zone: 0, map: null, pos: null, phase: 'map',
+    removeCost: 5, bosses: 0, dives: 0, log: [], toast: null,
+    dive: null, reward: null, shop: null, event: null, pending: null, end: null,
   };
+  if (depth >= 3) run.oxygenMax -= 1;
+  if (has(run, 'bouteille')) run.oxygenMax += 1;
+  run.oxygen = run.oxygenMax;
+  for (const t of diver.bag) addCreature(run, t);
+  for (const t of diver.corals) addCoral(run, t);
+  run.map = genMap(run);
+  return run;
 }
 
-export const has = (run, t) => run.treasures.includes(t);
+export function addCreature(run, t, extra = {}) {
+  const c = { id: nid(run), t, bonus: 0, star: 0, ...extra };
+  run.bag.push(c);
+  return c;
+}
+export function addCoral(run, t) {
+  const c = { id: nid(run), t, lvl: 0 };
+  run.corals.push(c);
+  return c;
+}
+export function addArtifact(run, a) {
+  if (has(run, a)) return;
+  run.artifacts.push(a);
+  if (a === 'bouteille') { run.oxygenMax += 1; run.oxygen = Math.min(run.oxygenMax, run.oxygen + 1); }
+}
+export const price = (run, p) => (run.depth >= 4 ? Math.ceil(p * 1.25) : p);
 
-// ── Plongée ──────────────────────────────────────────────────
-export function startDive(run) {
-  const cfg = DIVES[run.diveIndex];
-  const d = {
-    cfg, target: cfg.target, mods: [],
-    drawPile: [], courant: [], hand: [], reef: [], epave: [],
-    tides: 0, tidesNeeded: 3 + (has(run, 'ancre') ? 1 : 0),
-    handMax: 10 + (has(run, 'sac') ? 3 : 0),
-    courantMax: 10 + (has(run, 'algues') ? 3 : 0),
-    reveal: 1, coralCostMod: has(run, 'couronne') ? -1 : 0, topCostMod: 0,
-    tideZone: 1 / 3,
-    drawLimit: has(run, 'longuevue') ? 3 : 2,
-    actions: 1, taken: 0, turn: 1,
-    log: [], ended: false, endReason: '',
-  };
-  // Conditions
-  const modKeys = shuffle(Object.keys(MODIFIERS)).slice(0, cfg.mods);
-  for (const k of modKeys) { d.mods.push(k); MODIFIERS[k].apply(d); }
+// ── Carte de la zone ────────────────────────────────────────
+// 6 rangées de 3 couloirs, puis le gardien. Chaque nœud mène aux nœuds
+// des couloirs voisins de la rangée suivante.
+const ROW_TYPES = [
+  [['dive', 1]],
+  [['dive', 3], ['event', 2]],
+  [['dive', 3], ['event', 2], ['shop', 2], ['elite', 1]],
+  [['dive', 2], ['elite', 2], ['shop', 2], ['event', 1]],
+  [['dive', 3], ['elite', 2], ['event', 2]],
+  [['rest', 1]],
+];
+const COND_KEYS = Object.keys(CONDITIONS);
+// Le Léviathan et le Siphon sont trop punitifs avec seulement 2 coraux.
+const condPool = (run) => COND_KEYS.filter((k) => run.zone > 0 || !['leviathan', 'siphon'].includes(k));
 
-  // Pioche : cartes mélangées, Marées cachées dans la dernière partie.
-  const cards = shuffle(run.collection.map((t) => ({ ...t, uid: uid() })));
-  const cut = Math.floor(cards.length * (1 - d.tideZone));
-  const tides = Array.from({ length: d.tidesNeeded }, () => ({ kind: 'tide', uid: uid() }));
-  d.drawPile = [...cards.slice(0, cut), ...shuffle([...cards.slice(cut), ...tides])];
-
-  if (has(run, 'bouteille')) {
-    d.reef.push(newCoral({ kind: 'coral', coral: 'cerveau', uid: uid() }));
+export function genMap(run) {
+  const rows = [];
+  for (let r = 0; r < ROWS_PER_ZONE; r++) {
+    const lanes = rnd(run) < 0.45 ? [0, 1, 2] : shuffle(run, [0, 1, 2]).slice(0, 2).sort();
+    const row = [null, null, null];
+    for (const l of lanes) {
+      // Pas deux Comptoirs ni deux élites sur la même rangée.
+      const used = row.filter(Boolean).map((n) => n.type);
+      const opts = ROW_TYPES[r].filter(([t]) => !(['shop', 'elite'].includes(t) && used.includes(t)));
+      const type = weighted(run, opts.length ? opts : ROW_TYPES[r]);
+      row[l] = { row: r, lane: l, type, done: false };
+      if (type === 'elite') row[l].cond = [pick(run, condPool(run))];
+    }
+    rows.push(row);
   }
-  const start = 6 + (has(run, 'filet') ? 2 : 0);
-  for (let i = 0; i < start; i++) drawCard(d);
-  for (let i = 0; i < 3; i++) revealCard(d);
-  log(d, `Plongée « ${cfg.name} » — objectif ${d.target} pts.`);
+  // Au moins un Comptoir par zone.
+  if (!rows[2].concat(rows[3]).some((n) => n && n.type === 'shop')) {
+    const cand = rows[2].filter(Boolean);
+    const n = pick(run, cand); n.type = 'shop'; delete n.cond;
+  }
+  // Liens
+  for (let r = 0; r < ROWS_PER_ZONE - 1; r++) {
+    for (const n of rows[r].filter(Boolean)) {
+      n.links = rows[r + 1].filter((m) => m && Math.abs(m.lane - n.lane) <= 1).map((m) => m.lane);
+    }
+  }
+  for (const n of rows[ROWS_PER_ZONE - 1].filter(Boolean)) n.links = [1];
+  const conds = shuffle(run, condPool(run));
+  const nb = (run.zone === 2 ? 2 : 1) + (run.depth >= 5 ? 1 : 0);
+  const boss = { row: ROWS_PER_ZONE, lane: 1, type: 'boss', done: false, cond: conds.slice(0, nb), links: [] };
+  rows.push([null, boss, null]);
+  return { zone: run.zone, rows };
+}
+
+export function nodeAt(run, row, lane) { return run.map.rows[row]?.[lane] || null; }
+export function availableNodes(run) {
+  if (run.phase !== 'map') return [];
+  if (!run.pos) return run.map.rows[0].filter(Boolean);
+  const cur = nodeAt(run, run.pos.row, run.pos.lane);
+  return cur.links.map((l) => nodeAt(run, cur.row + 1, l)).filter(Boolean);
+}
+
+export function enterNode(run, row, lane) {
+  const node = nodeAt(run, row, lane);
+  if (!node || !availableNodes(run).includes(node)) return false;
+  run.pos = { row, lane };
+  node.done = true;
+  run.toast = null;
+  if (node.type === 'dive' || node.type === 'elite' || node.type === 'boss') {
+    run.dive = startDive(run, node);
+    run.phase = 'dive';
+  } else if (node.type === 'shop') {
+    run.shop = makeShop(run);
+    run.phase = 'shop';
+  } else if (node.type === 'event') {
+    run.event = { id: pickEvent(run), msg: null };
+    run.phase = 'event';
+  } else if (node.type === 'rest') {
+    run.phase = 'rest';
+  }
+  return true;
+}
+
+// Retour sur la carte (ou zone suivante après un gardien).
+export function backToMap(run) {
+  run.dive = null; run.shop = null; run.event = null; run.reward = null; run.pending = null;
+  const cur = run.pos && nodeAt(run, run.pos.row, run.pos.lane);
+  if (cur && cur.type === 'boss') {
+    if (run.zone >= ZONES.length - 1) { endRun(run, true); return; }
+    run.zone++;
+    run.pos = null;
+    run.map = genMap(run);
+    run.toast = `Vous descendez vers ${ZONES[run.zone].name}…`;
+  }
+  run.phase = 'map';
+}
+
+function endRun(run, win) {
+  run.phase = 'end';
+  run.end = { win, zone: run.zone, row: run.pos ? run.pos.row : 0 };
+}
+
+// ── Plongée ─────────────────────────────────────────────────
+export function stepIndex(run, node) { return run.zone * (ROWS_PER_ZONE + 1) + node.row; }
+
+export function targetFor(run, node) {
+  let t = BASE.zoneTargets[run.zone] * BASE.rowGrowth ** node.row;
+  if (node.type === 'elite') t *= BASE.eliteX;
+  if (node.type === 'boss') t *= BASE.bossX;
+  if (run.depth >= 1) t *= 1.15;
+  const mag = 10 ** Math.max(1, Math.floor(Math.log10(t)) - 1);
+  return Math.round(t / mag) * mag;
+}
+
+export function startDive(run, node) {
+  const cond = node.cond ? [...node.cond] : [];
+  const c = (k) => cond.includes(k);
+  const d = {
+    type: node.type, cond, target: targetFor(run, node),
+    score: 0, tide: 1,
+    tidesMax: BASE.tides + (has(run, 'boussole') ? 1 : 0) - (c('siphon') ? 1 : 0),
+    remous: c('glace') ? 0 : Math.max(0, BASE.remous + (has(run, 'masque') ? 1 : 0)
+      + run.corals.filter((k) => k.t === 'bulle').length - (run.depth >= 2 ? 1 : 0)),
+    handSize: BASE.hand + (has(run, 'filet') ? 1 : 0) - (c('glace') ? 1 : 0),
+    draw: shuffle(run, run.bag.map((x) => x.id)), discard: [], hand: [],
+    board: run.corals.map(() => ({ N: null, E: null, S: null, W: null })),
+    blocked: [], phase: 'place', last: null, ended: null, history: [],
+  };
+  run.dive = d;
+  drawTo(run, d.handSize);
+  krakenBlock(run);
   return d;
 }
 
-function newCoral(card) {
-  return { card, type: card.coral, slots: { top: [], bottom: [], left: [], right: [] } };
+export function hasCond(run, k) { return !!run.dive && run.dive.cond.includes(k); }
+
+function drawOne(run) {
+  const d = run.dive;
+  if (!d.draw.length) {
+    if (!d.discard.length) return null;
+    d.draw = shuffle(run, d.discard);
+    d.discard = [];
+  }
+  const id = d.draw.shift();
+  d.hand.push(id);
+  return id;
+}
+function drawTo(run, n) { while (run.dive.hand.length < n && drawOne(run) !== null); }
+function drawN(run, n) { for (let i = 0; i < n; i++) if (drawOne(run) === null) break; }
+
+export function isBlocked(run, ci, slot) {
+  const k = CORALS[run.corals[ci].t];
+  if (k.blocked && k.blocked.includes(slot)) return true;
+  return run.dive.blocked.includes(`${ci}:${slot}`);
+}
+function openSlots(run, ci) { return SLOTS.filter((s) => !isBlocked(run, ci, s)); }
+
+function krakenBlock(run) {
+  const d = run.dive;
+  d.blocked = [];
+  if (!hasCond(run, 'kraken')) return;
+  const free = [];
+  d.board.forEach((b, ci) => SLOTS.forEach((s) => { if (!b[s] && !isBlocked(run, ci, s)) free.push(`${ci}:${s}`); }));
+  d.blocked = shuffle(run, free).slice(0, 2);
 }
 
-export function log(d, msg) { d.log.unshift(msg); if (d.log.length > 40) d.log.pop(); }
+export function canPlace(run, id, ci, slot) {
+  const d = run.dive;
+  return d.phase === 'place' && d.hand.includes(id) && !!d.board[ci] && !d.board[ci][slot] && !isBlocked(run, ci, slot);
+}
 
-// Tire la première carte non-Marée de la pioche.
-function pullCard(d) {
-  while (d.drawPile.length) {
-    const c = d.drawPile.shift();
-    if (c.kind === 'tide') {
-      d.tides++;
-      log(d, `🌊 Une Marée monte ! (${d.tides}/${d.tidesNeeded})`);
-      if (d.tides >= d.tidesNeeded) { endDive(d, 'La dernière Marée est montée.'); return null; }
-      continue;
+// Pose une créature de la main. Retourne les effets déclenchés (pour l'affichage).
+export function place(run, id, ci, slot) {
+  if (!canPlace(run, id, ci, slot)) return null;
+  const d = run.dive;
+  const def = defOf(run, id);
+  d.hand.splice(d.hand.indexOf(id), 1);
+  d.board[ci][slot] = { id, lock: !!def.place };
+  const notes = [];
+  if (def.place) {
+    const times = run.corals[ci].t === 'lumineux' ? 2 : 1;
+    for (let i = 0; i < times; i++) {
+      if (def.place.draw) { drawN(run, def.place.draw); notes.push(`${def.emoji} +${def.place.draw} créature${def.place.draw > 1 ? 's' : ''}`); }
+      if (def.place.remous) { d.remous += def.place.remous; notes.push(`${def.emoji} +1 Remous`); }
     }
-    return c;
   }
-  endDive(d, 'La pioche est épuisée.');
-  return null;
+  return notes;
 }
 
-function endDive(d, reason) { if (!d.ended) { d.ended = true; d.endReason = reason; } }
-
-export function drawCard(d) {
-  if (d.ended || d.hand.length >= d.handMax) return null;
-  const c = pullCard(d);
-  if (c) d.hand.push(c);
-  return c;
-}
-function revealCard(d) {
-  if (d.ended) return null;
-  const c = pullCard(d);
-  if (c) d.courant.push(c);
-  return c;
+export function unplace(run, ci, slot) {
+  const d = run.dive;
+  const cell = d.phase === 'place' && d.board[ci] && d.board[ci][slot];
+  if (!cell || cell.lock) return false;
+  d.board[ci][slot] = null;
+  d.hand.push(cell.id);
+  return cell.id;
 }
 
-// ── Action « Piocher » ──────────────────────────────────────
-export function canTake(d) {
-  return !d.ended && d.taken < d.drawLimit && d.hand.length < d.handMax;
-}
-export function takeFromDeck(d) {
-  if (!canTake(d) || !d.drawPile.length) return false;
-  d.taken++;
-  drawCard(d);
-  afterTake(d);
+export function doRemous(run, ids) {
+  const d = run.dive;
+  if (d.phase !== 'place' || d.remous <= 0 || !ids.length) return false;
+  if (!ids.every((id) => d.hand.includes(id))) return false;
+  d.hand = d.hand.filter((id) => !ids.includes(id));
+  d.discard.push(...ids);
+  d.remous--;
+  drawN(run, ids.length);
   return true;
 }
-export function takeFromCourant(d, cardUid) {
-  if (!canTake(d)) return false;
-  const i = d.courant.findIndex((c) => c.uid === cardUid);
-  if (i < 0) return false;
-  d.taken++;
-  d.hand.push(d.courant.splice(i, 1)[0]);
-  afterTake(d);
-  return true;
-}
-function afterTake(d) {
-  if (d.ended) return;
-  if (d.taken >= d.drawLimit || d.hand.length >= d.handMax) finishDraw(d);
-}
-export function finishDraw(d) {
-  if (d.taken > 0) log(d, `Vous piochez ${d.taken} carte${d.taken > 1 ? 's' : ''}.`);
-  d.taken = 0;
-  completeAction(d);
+
+export function boardCount(run) {
+  return run.dive.board.reduce((a, b) => a + SLOTS.filter((s) => b[s]).length, 0);
 }
 
-function completeAction(d) {
-  d.actions--;
-  if (d.actions <= 0) endTurn(d);
-}
-
-export function endTurn(d) {
-  if (d.ended) return;
-  for (let i = 0; i < d.reveal; i++) revealCard(d);
-  if (d.courant.length >= d.courantMax) {
-    log(d, `🌀 Le Courant déborde et emporte ${d.courant.length} cartes vers les abysses.`);
-    d.courant = [];
-  }
-  d.turn++;
-  d.actions = 1;
-  d.taken = 0;
-}
-
-// ── Action « Jouer » ────────────────────────────────────────
-export function cardCost(d, card, half) {
-  if (card.kind === 'coral') return Math.max(0, CORALS[card.coral].cost + d.coralCostMod);
-  const sp = SPECIES[card.halves[half]];
-  return sp.cost + (sp.pos === 'top' ? d.topCostMod : 0);
-}
-
-// Emplacements où une moitié de carte peut être posée.
-export function validTargets(d, card, half) {
-  if (card.kind === 'coral') return [{ coral: -1, slot: 'new' }];
-  const sp = SPECIES[card.halves[half]];
-  const slots = sp.pos === 'flank' ? ['left', 'right'] : [sp.pos];
-  const out = [];
-  d.reef.forEach((coral, ci) => {
-    for (const s of slots) {
-      const cur = coral.slots[s];
-      if (!cur.length || (sp.stack && cur[0].sp === card.halves[half])) out.push({ coral: ci, slot: s });
+// ── Calcul d'une marée ──────────────────────────────────────
+// Pour chaque corail : Éclat (somme des créatures) × Mult (corail + créatures
+// + couronne) × multiplicateurs.
+export function scoreTide(run) {
+  const d = run.dive;
+  const xs = [];
+  const at = {};
+  d.board.forEach((b, ci) => {
+    for (const slot of SLOTS) {
+      const cell = b[slot];
+      if (!cell) continue;
+      const i = inst(run, cell.id);
+      const def = CREATURES[i.t];
+      const x = {
+        id: cell.id, t: i.t, inst: i, def, ci, slot, coral: run.corals[ci],
+        nbs: [], opp: null, aura: 0, times: 1, silenced: false, allFam: !!def.allFam,
+        base: def.pts + i.bonus, pts: 0, mult: 0,
+      };
+      xs.push(x); at[`${ci}:${slot}`] = x;
     }
   });
+  for (const x of xs) {
+    for (const s of RING[x.slot]) if (at[`${x.ci}:${s}`]) x.nbs.push(at[`${x.ci}:${s}`]);
+    // Ponts entre coraux voisins : Flanc ➡ d'un corail ↔ Flanc ⬅ du suivant.
+    if (x.slot === 'E' && at[`${x.ci + 1}:W`]) x.nbs.push(at[`${x.ci + 1}:W`]);
+    if (x.slot === 'W' && at[`${x.ci - 1}:E`]) x.nbs.push(at[`${x.ci - 1}:E`]);
+    x.opp = at[`${x.ci}:${OPPOSITE[x.slot]}`] || null;
+  }
+  const isFam = (x, f) => x.allFam || x.def.fam === f;
+  const B = {
+    run, xs, handLeft: d.hand.length,
+    countFam: (f) => xs.filter((x) => isFam(x, f)).length,
+    on: (ci) => xs.filter((x) => x.ci === ci),
+    full: (ci) => { const o = openSlots(run, ci); return o.length > 0 && o.every((s) => at[`${ci}:${s}`]); },
+  };
+
+  for (const x of xs) x.def.pre?.(x, B);
+  for (const x of xs) {
+    if (x.silenced || x.def.copy) continue;
+    const k = CORALS[x.coral.t];
+    let p = x.base + (x.def.eclat?.(x, B) || 0) + x.aura + (k.eclatB?.(x) || 0);
+    if (has(run, 'hamecon') && isFam(x, 'poisson')) p += 1;
+    if (has(run, 'nasse') && isFam(x, 'crustace')) p += 3;
+    if (has(run, 'algues') && x.def.sed) p += 3;
+    p *= k.eclatX?.(x) || 1;
+    x.pts = Math.max(0, p) * x.times;
+  }
+  for (const x of xs) {
+    if (x.silenced || !x.def.copy) continue;
+    x.pts = Math.max(0, (x.opp && !x.opp.def.copy ? x.opp.pts : 0) + x.aura) * x.times;
+  }
+  for (const x of xs) if (!x.silenced) x.mult = x.def.mult?.(x, B) || 0;
+
+  const whales = xs.filter((x) => x.t === 'baleine' && !x.silenced).length;
+  const corals = run.corals.map((c, ci) => {
+    const k = CORALS[c.t];
+    const on = B.on(ci);
+    const live = on.filter((x) => !x.silenced);
+    const tags = [];
+    const eclat = on.reduce((a, x) => a + x.pts, 0);
+    let mult = k.mult + c.lvl + (has(run, 'perle') ? 1 : 0) + whales
+      + (k.multB?.(on) || 0) + live.reduce((a, x) => a + x.mult, 0);
+    if (has(run, 'trident')) mult += on.filter((x) => x.inst.star > 0).length;
+    if (hasCond(run, 'pression')) mult = Math.max(1, mult - 1);
+    const full = B.full(ci);
+    let xm = live.reduce((a, x) => a * (x.def.xmult?.(x, B) || 1), 1) * (k.xmultB?.(full) || 1);
+    if (full && !hasCond(run, 'fantome')) {
+      mult += has(run, 'conque') ? 3 : 1;
+      tags.push('full');
+      if (on.length >= 3) {
+        const fams = on.filter((x) => !x.allFam).map((x) => x.def.fam);
+        const uniq = new Set(fams).size;
+        if (uniq <= 1) { xm *= has(run, 'ecaille') ? 3 : 2; tags.push('banc'); }
+        else if (uniq === fams.length) { xm *= has(run, 'prisme') ? 2 : 1.5; tags.push('mosaic'); }
+      }
+    }
+    if (k.xmultB && full) tags.push('feu');
+    const multTot = Math.round(mult * xm * 100) / 100;
+    return { ci, eclat, mult, xm, multTot, score: Math.floor(eclat * mult * xm), tags, ignored: false, n: on.length };
+  });
+  if (hasCond(run, 'leviathan')) {
+    const best = corals.reduce((b, c) => (c.score > (b?.score ?? -1) ? c : b), null);
+    if (best && best.score > 0) best.ignored = true;
+  }
+  let total = corals.reduce((a, c) => a + (c.ignored ? 0 : c.score), 0);
+  const factors = [];
+  if (has(run, 'ancre') && d.tide === 1) { total *= 2; factors.push('⚓ Ancre ×2'); }
+  if (has(run, 'sablier') && d.tide === d.tidesMax) { total *= 2; factors.push('⏳ Sablier ×2'); }
+  const byKey = {};
+  for (const x of xs) byKey[`${x.ci}:${x.slot}`] = { pts: x.pts, mult: x.mult, silenced: x.silenced, times: x.times };
+  return { corals, total, factors, byKey, xs, B };
+}
+
+// Lance la marée : marque les points et applique les effets d'après-marée.
+export function launchTide(run) {
+  const d = run.dive;
+  if (d.phase !== 'place' || boardCount(run) === 0) return null;
+  const res = scoreTide(run);
+  const out = { pearls: 0, devoured: new Set(), notes: [] };
+  for (const x of res.xs) if (!x.silenced) x.def.after?.(x, res.B, out);
+  run.pearls += out.pearls;
+  if (out.pearls) out.notes.push(`🦪 +${out.pearls} perles`);
+  d.score += res.total;
+  d.devoured = [...out.devoured];
+  d.last = { corals: res.corals, total: res.total, factors: res.factors, byKey: res.byKey, notes: out.notes, tide: d.tide };
+  d.history.push(res.total);
+  d.phase = 'scored';
+  if (d.score >= d.target) d.ended = 'win';
+  else if (d.tide >= d.tidesMax) d.ended = 'lose';
+  return d.last;
+}
+
+// Après l'affichage du résultat : nettoie le récif et prépare la marée suivante.
+export function nextTide(run) {
+  const d = run.dive;
+  if (d.phase !== 'scored') return;
+  const dev = new Set(d.devoured || []);
+  d.board.forEach((b) => {
+    for (const s of SLOTS) {
+      const cell = b[s];
+      if (!cell) continue;
+      if (dev.has(cell.id)) { b[s] = null; continue; }
+      if (CREATURES[inst(run, cell.id).t].sed) { cell.lock = true; continue; }
+      d.discard.push(cell.id);
+      b[s] = null;
+    }
+  });
+  if (dev.size) run.bag = run.bag.filter((c) => !dev.has(c.id));
+  d.devoured = [];
+  if (d.ended) { finishDive(run); return; }
+  d.tide++;
+  if (hasCond(run, 'tempete')) { d.discard.push(...d.hand); d.hand = []; }
+  drawTo(run, d.handSize);
+  krakenBlock(run);
+  d.last = null;
+  d.phase = 'place';
+}
+
+// Abandonner les marées restantes n'est pas permis : on peut seulement les jouer.
+function finishDive(run) {
+  const d = run.dive;
+  run.dives++;
+  let win = d.ended === 'win';
+  if (!win && has(run, 'trefle') && d.score >= d.target * 0.75) {
+    win = true;
+    run.artifacts = run.artifacts.filter((a) => a !== 'trefle');
+    run.toast = '🍀 Le coquillage porte-bonheur se brise… mais la plongée est sauvée !';
+  }
+  if (!win) {
+    if (d.type === 'boss') { endRun(run, false); return; }
+    run.oxygen--;
+    if (run.oxygen <= 0) { endRun(run, false); return; }
+    run.toast = `💨 Plongée ratée : vous perdez 1 🫧 Oxygène (${run.oxygen}/${run.oxygenMax}).`;
+    backToMap(run);
+    return;
+  }
+  const unused = d.tidesMax - d.tide;
+  let pearls = 3 + unused + (d.type === 'elite' ? 2 : 0) + (d.type === 'boss' ? 5 : 0);
+  const lines = [['Plongée réussie', 3]];
+  if (unused) lines.push([`Marées non utilisées ×${unused}`, unused]);
+  if (d.type === 'elite') lines.push(['Plongée périlleuse', 2]);
+  if (d.type === 'boss') lines.push(['Gardien vaincu', 5]);
+  if (has(run, 'tresor')) { pearls += 4; lines.push(['🗺️ Carte au trésor', 4]); }
+  if (has(run, 'bourse')) {
+    const it = Math.min(5, Math.floor(run.pearls / 5));
+    if (it) { pearls += it; lines.push(['👝 Bourse de nacre', it]); }
+  }
+  run.pearls += pearls;
+  const stages = [{ kind: 'creature', options: creatureOffers(run, has(run, 'longuevue') ? 4 : 3) }];
+  if (d.type === 'elite') stages.push({ kind: 'artifact', options: artifactOffers(run, 3) });
+  if (d.type === 'boss') {
+    run.bosses++;
+    run.oxygen = run.oxygenMax;
+    if (run.zone < ZONES.length - 1) {
+      stages.unshift(run.corals.length < BASE.maxCorals
+        ? { kind: 'coral', options: coralOffers(run, 3) }
+        : { kind: 'fortify-all' });
+    }
+  }
+  run.reward = { pearls, lines, stages, score: d.score, target: d.target, type: d.type };
+  if (d.type === 'boss' && run.zone >= ZONES.length - 1) { endRun(run, true); return; }
+  run.phase = 'reward';
+}
+
+// ── Offres ──────────────────────────────────────────────────
+function rarityWeights(run) {
+  return [[['c', 60], ['u', 32], ['r', 8]], [['c', 45], ['u', 38], ['r', 17]], [['c', 32], ['u', 40], ['r', 28]]][run.zone];
+}
+export function creatureOffers(run, n) {
+  const out = [];
+  let guard = 0;
+  while (out.length < n && guard++ < 100) {
+    const r = weighted(run, rarityWeights(run));
+    const pool = Object.keys(CREATURES).filter((k) => CREATURES[k].rar === r && !out.includes(k));
+    if (pool.length) out.push(pick(run, pool));
+  }
+  return out;
+}
+export function artifactOffers(run, n) {
+  return shuffle(run, Object.keys(ARTIFACTS).filter((a) => !has(run, a))).slice(0, n);
+}
+export function coralOffers(run, n) {
+  const w = [['c', 50], ['u', 30], ['r', 20]];
+  const out = [];
+  let guard = 0;
+  while (out.length < n && guard++ < 100) {
+    const r = weighted(run, w);
+    const pool = Object.keys(CORALS).filter((k) => CORALS[k].rar === r && !out.includes(k));
+    if (pool.length) out.push(pick(run, pool));
+  }
   return out;
 }
 
-export function canPlay(d, card, half) {
-  if (d.ended || d.taken > 0) return false;
-  if (cardCost(d, card, half) > d.hand.length - 1) return false;
-  return validTargets(d, card, half).length > 0;
-}
-
-// Joue une carte. Retourne la liste des effets interactifs à résoudre.
-export function playCard(run, d, cardUid, half, target, payUids) {
-  const card = d.hand.find((c) => c.uid === cardUid);
-  if (!card || !canPlay(d, card, half)) return null;
-  const cost = cardCost(d, card, half);
-  if (payUids.length !== cost || payUids.includes(cardUid)) return null;
-  if (!payUids.every((u) => d.hand.some((c) => c.uid === u))) return null;
-  const ok = validTargets(d, card, half).some((t) => t.coral === target.coral && t.slot === target.slot);
-  if (!ok) return null;
-
-  d.hand = d.hand.filter((c) => c.uid !== cardUid);
-  const paid = d.hand.filter((c) => payUids.includes(c.uid));
-  d.hand = d.hand.filter((c) => !payUids.includes(c.uid));
-  d.courant.push(...paid);
-
-  let effects = [];
-  if (card.kind === 'coral') {
-    d.reef.push(newCoral(card));
-    log(d, `🪸 Vous faites pousser : ${CORALS[card.coral].name}.`);
-    effects = [...(CORALS[card.coral].effects || [])];
-  } else {
-    const spId = card.halves[half];
-    const sp = SPECIES[spId];
-    const coral = d.reef[target.coral];
-    coral.slots[target.slot].push({ sp: spId, card });
-    log(d, `${sp.emoji} ${sp.name} rejoint ${CORALS[coral.type].name}.`);
-    effects = [...(sp.effects || [])];
-    if (card.color === coral.type) {
-      const n = has(run, 'hippocampe') ? 2 : 1;
-      log(d, `✨ Symbiose ! Vous piochez ${n} carte${n > 1 ? 's' : ''}.`);
-      effects.unshift({ type: 'draw', n, symbiose: true });
-    }
+// Étapes de récompense : la première de la liste est l'étape en cours.
+export function rewardChoose(run, value) {
+  const st = run.reward.stages.shift();
+  if (!st) return;
+  if (st.kind === 'creature') {
+    if (value) addCreature(run, value); else run.pearls += 3;
+  } else if (st.kind === 'artifact') {
+    if (value) addArtifact(run, value); else run.pearls += 4;
+  } else if (st.kind === 'coral') {
+    if (value) addCoral(run, value); else run.pearls += 5;
+  } else if (st.kind === 'fortify-all') {
+    for (const c of run.corals) c.lvl++;
   }
-
-  // Effets automatiques immédiats ; on renvoie les interactifs.
-  const pending = [];
-  for (const e of effects) {
-    if (e.type === 'draw') for (let i = 0; i < e.n; i++) drawCard(d);
-    else if (e.type === 'extra') { d.actions++; log(d, '➕ Action supplémentaire !'); }
-    else pending.push({ ...e });
-  }
-  return pending.filter((e) => isEffectUseful(d, e));
+  if (!run.reward.stages.length) backToMap(run);
 }
 
-export function isEffectUseful(d, e) {
-  if (d.ended) return false;
-  if (e.type === 'takeCourant') return d.courant.length > 0 && d.hand.length < d.handMax;
-  if (e.type === 'epaveCourant') return d.courant.length > 0;
-  if (e.type === 'epaveHand') return d.hand.length > 0;
-  return false;
-}
-
-export function resolveEffect(d, e, uids) {
-  uids = uids.slice(0, e.n);
-  if (e.type === 'takeCourant') {
-    const room = d.handMax - d.hand.length;
-    uids = uids.slice(0, room);
-    for (const u of uids) {
-      const i = d.courant.findIndex((c) => c.uid === u);
-      if (i >= 0) d.hand.push(d.courant.splice(i, 1)[0]);
-    }
-    if (uids.length) log(d, `Vous prenez ${uids.length} carte(s) du Courant.`);
-  } else if (e.type === 'epaveCourant') {
-    for (const u of uids) {
-      const i = d.courant.findIndex((c) => c.uid === u);
-      if (i >= 0) d.epave.push(d.courant.splice(i, 1)[0]);
-    }
-    if (uids.length) log(d, `⚓ ${uids.length} carte(s) coulent dans l'Épave.`);
-  } else if (e.type === 'epaveHand') {
-    for (const u of uids) {
-      const i = d.hand.findIndex((c) => c.uid === u);
-      if (i >= 0) d.epave.push(d.hand.splice(i, 1)[0]);
-    }
-    if (uids.length) log(d, `⚓ ${uids.length} carte(s) coulent dans l'Épave.`);
-  }
-}
-
-// À appeler une fois tous les effets d'une carte jouée résolus.
-export function finishPlay(d) { completeAction(d); }
-
-// Passer l'action en cours (sans rien faire).
-export function passAction(d) { if (!d.ended) { d.taken = 0; completeAction(d); } }
-
-// Après un chargement de sauvegarde : éviter les collisions d'identifiants.
-export function bumpUid(n) { if (n >= UID) UID = n + 1; }
-
-// ── Score ───────────────────────────────────────────────────
-export function makeCtx(run, d) {
-  const creatures = [];
-  d.reef.forEach((coral) => {
-    for (const [slot, arr] of Object.entries(coral.slots)) {
-      for (const p of arr) creatures.push({ p, coral, slot, sp: SPECIES[p.sp] });
-    }
-  });
-  const posOf = (slot) => (slot === 'left' || slot === 'right' ? 'flank' : slot);
-  return {
-    corals: d.reef, creatures, hand: d.hand, epave: d.epave,
-    countCoral: (t) => d.reef.filter((c) => c.type === t).length,
-    coralFamilies: () => new Set(d.reef.map((c) => c.type).filter((t) => t !== 'noir')).size,
-    countTag: (t) => creatures.filter((c) => c.sp.tags.includes(t)).length,
-    countSp: (id) => creatures.filter((c) => c.p.sp === id).length,
-    countPos: (pos) => creatures.filter((c) => posOf(c.slot) === pos).length,
-    creaturesOn: (coral) => Object.values(coral.slots).reduce((a, s) => a + s.length, 0),
-    tagOn: (coral, t) => Object.values(coral.slots).flat().filter((p) => SPECIES[p.sp].tags.includes(t)).length,
-    isFull: (coral) => Object.values(coral.slots).every((s) => s.length > 0),
-  };
-}
-
-export function computeScore(run, d) {
-  const ctx = makeCtx(run, d);
-  const per = new Map(); // uid -> pts
-  const lines = [];
-  let total = 0;
-  const add = (label, pts, key) => {
-    total += pts;
-    if (key !== undefined) per.set(key, (per.get(key) || 0) + pts);
-    lines.push({ label, pts });
-  };
-  for (const coral of d.reef) {
-    const def = CORALS[coral.type];
-    let pts = def.score(ctx, { coral });
-    if (has(run, 'conque')) pts += 1;
-    add(`🪸 ${def.name}`, pts, coral.card.uid);
-  }
-  for (const c of ctx.creatures) {
-    let pts = c.sp.score(ctx, { coral: c.coral, slot: c.slot });
-    if (has(run, 'hamecon') && c.sp.tags.includes('Poisson')) pts += 1;
-    if (has(run, 'nasse') && (c.sp.tags.includes('Crustacé') || c.sp.tags.includes('Mollusque'))) pts += 1;
-    add(`${c.sp.emoji} ${c.sp.name}`, pts, c.p.card.uid);
-  }
-  if (d.epave.length) add(`⚓ Épave (${d.epave.length} cartes)`, d.epave.length * (has(run, 'carte') ? 2 : 1));
-  if (has(run, 'perle')) add('⚫ Perle noire', 6);
-  return { total, per, lines };
-}
-
-// Regroupe les lignes identiques pour le récapitulatif.
-export function summarize(lines) {
-  const m = new Map();
-  for (const l of lines) {
-    const e = m.get(l.label) || { label: l.label, pts: 0, n: 0 };
-    e.pts += l.pts; e.n++;
-    m.set(l.label, e);
-  }
-  return [...m.values()].sort((a, b) => b.pts - a.pts);
-}
-
-// ── Fin de plongée & récompenses ────────────────────────────
-export function concludeDive(run, d) {
-  const { total } = computeScore(run, d);
-  const success = total >= d.target;
-  const pearls = success ? 3 + Math.floor((total - d.target) / 4) : 0;
-  run.scores.push(total);
-  if (success) { run.pearls += pearls; run.diveIndex++; }
-  return { total, success, pearls, last: run.diveIndex >= DIVES.length };
-}
-
-export function randomOffer(rareChance = 0.35) {
-  const base = Math.random() < rareChance ? pick(POOL_RARE) : pick(POOL_COMMON);
-  return makeTemplate(base);
-}
-export function isRare(t) {
-  if (t.kind === 'coral') return !!CORALS[t.coral].rare;
-  return t.halves.some((h) => SPECIES[h].rare);
-}
-export function cardPrice(t) { return isRare(t) ? 5 : 3; }
-
+// ── Comptoir ────────────────────────────────────────────────
 export function makeShop(run) {
-  const owned = new Set(run.treasures);
-  const tr = shuffle(Object.keys(TREASURES).filter((k) => !owned.has(k))).slice(0, 3);
-  return {
-    cards: [randomOffer(0.5), randomOffer(0.5), randomOffer(0.5), randomOffer(0.5)],
-    treasures: tr,
-  };
+  const cr = creatureOffers(run, 3).map((t) => ({ t, price: price(run, RARITY[CREATURES[t].rar].price) }));
+  const ar = artifactOffers(run, 2).map((a) => ({ a, price: price(run, ARTIFACTS[a].price) }));
+  const co = run.corals.length < BASE.maxCorals ? coralOffers(run, 1).map((t) => ({ t, price: price(run, 14) })) : [];
+  return { cr, ar, co, reroll: 2 };
+}
+export function shopBuy(run, kind, i) {
+  const s = run.shop;
+  const item = s[kind][i];
+  if (!item || run.pearls < item.price) return false;
+  run.pearls -= item.price;
+  if (kind === 'cr') addCreature(run, item.t);
+  if (kind === 'ar') addArtifact(run, item.a);
+  if (kind === 'co') addCoral(run, item.t);
+  s[kind][i] = null;
+  return true;
+}
+export function shopReroll(run) {
+  const s = run.shop;
+  if (run.pearls < s.reroll) return false;
+  run.pearls -= s.reroll;
+  const next = makeShop(run);
+  s.cr = next.cr;
+  s.reroll++;
+  return true;
+}
+export const healCost = (run) => price(run, 6);
+export function shopHeal(run) {
+  if (run.pearls < healCost(run) || run.oxygen >= run.oxygenMax) return false;
+  run.pearls -= healCost(run);
+  run.oxygen++;
+  return true;
+}
+
+// ── Choix d'une créature / d'un corail (événements, nurserie, comptoir) ──
+// purpose : remove | upgrade | duplicate | sell | fortify
+export function upgradeAmount(run, c) {
+  return Math.max(2, Math.ceil((CREATURES[c.t].pts + c.bonus) * 0.5));
+}
+export function applyPick(run, id) {
+  const p = run.pending;
+  if (!p) return false;
+  if (p.purpose === 'fortify') {
+    const c = run.corals.find((k) => k.id === id);
+    if (!c) return false;
+    c.lvl++;
+    run.toast = `${CORALS[c.t].emoji} ${CORALS[c.t].name} : +1 Mult permanent.`;
+  } else {
+    const c = inst(run, id);
+    if (!c) return false;
+    const def = CREATURES[c.t];
+    if (p.purpose === 'remove' || p.purpose === 'sell') {
+      if (run.bag.length <= 6) return false;
+      if (p.cost) { if (run.pearls < p.cost) return false; run.pearls -= p.cost; run.removeCost += 2; }
+      run.bag = run.bag.filter((k) => k.id !== id);
+      if (p.purpose === 'sell') run.pearls += 7;
+      run.toast = `${def.emoji} ${def.name} quitte votre banc.`;
+    } else if (p.purpose === 'upgrade') {
+      const n = upgradeAmount(run, c);
+      c.bonus += n; c.star++;
+      run.toast = `${def.emoji} ${def.name} ★ : +${n} Éclat permanent.`;
+    } else if (p.purpose === 'duplicate') {
+      addCreature(run, c.t, { bonus: c.bonus, star: c.star });
+      run.toast = `${def.emoji} ${def.name} est dupliqué !`;
+    }
+  }
+  const then = p.then;
+  run.pending = null;
+  if (then === 'map') backToMap(run);
+  return true;
+}
+
+// ── Nurserie ────────────────────────────────────────────────
+export function restChoose(run, what) {
+  if (what === 'heal') {
+    if (run.oxygen >= run.oxygenMax) return false;
+    run.oxygen = Math.min(run.oxygenMax, run.oxygen + 1);
+    run.toast = '🫧 Vous reprenez votre souffle (+1 Oxygène).';
+    backToMap(run);
+  } else if (what === 'upgrade') {
+    run.pending = { purpose: 'upgrade', then: 'map' };
+  } else if (what === 'fortify') {
+    run.pending = { purpose: 'fortify', then: 'map' };
+  }
+  return true;
+}
+
+// ── Épaves (événements) ─────────────────────────────────────
+export const EVENTS = {
+  galion: {
+    title: 'Le galion englouti', emoji: '🏴‍☠️',
+    text: 'La coque éventrée d’un galion repose sur le sable. Des reflets dorés brillent dans la cale… mais l’air de votre bouteille baisse vite.',
+    choices: [
+      { label: 'Fouiller la cale', text: '+12 perles, −1 🫧', ok: (r) => r.oxygen > 1,
+        act: (r) => { r.pearls += 12; r.oxygen--; return 'Vous remontez les poches pleines… et le souffle court.'; } },
+      { label: 'Prendre le coffret du capitaine', text: 'Un artefact au hasard, −1 🫧', ok: (r) => r.oxygen > 1 && artifactOffers(r, 1).length,
+        act: (r) => { const a = artifactOffers(r, 1)[0]; addArtifact(r, a); r.oxygen--; return `Vous trouvez : ${ARTIFACTS[a].emoji} ${ARTIFACTS[a].name} !`; } },
+      { label: 'Repartir', text: 'Rien ne se passe.', act: () => 'Mieux vaut ne pas tenter le diable.' },
+    ],
+  },
+  sardines: {
+    title: 'Le grand banc', emoji: '🐟',
+    text: 'Un banc de sardines tourbillonne autour de vous, si dense qu’il masque la lumière.',
+    choices: [
+      { label: 'Nager avec le banc', text: '+2 Sardines', act: (r) => { addCreature(r, 'sardine'); addCreature(r, 'sardine'); return 'Deux petits groupes décident de vous suivre.'; } },
+      { label: 'Disperser le banc', text: '+5 perles', act: (r) => { r.pearls += 5; return 'Au milieu du tourbillon, vous ramassez quelques perles.'; } },
+    ],
+  },
+  sirene: {
+    title: 'Le chant de la sirène', emoji: '🧜',
+    text: 'Une silhouette vous fait signe depuis un rocher. Son chant semble pouvoir faire naître la vie… contre rétribution.',
+    choices: [
+      { label: 'Lui offrir 6 perles', text: 'Dupliquez une créature de votre banc', ok: (r) => r.pearls >= 6,
+        act: (r) => { r.pearls -= 6; r.pending = { purpose: 'duplicate', then: 'map' }; return null; } },
+      { label: 'Écouter son chant', text: '+1 🫧', ok: (r) => r.oxygen < r.oxygenMax,
+        act: (r) => { r.oxygen++; return 'Vous vous sentez apaisé. (+1 Oxygène)'; } },
+      { label: 'Passer votre chemin', text: '', act: () => 'Le chant s’éteint derrière vous.' },
+    ],
+  },
+  chaud: {
+    title: 'Le courant chaud', emoji: '♨️',
+    text: 'Un courant tiède remonte des profondeurs, chargé de nutriments. Vos coraux frémissent.',
+    choices: [
+      { label: 'Y exposer un corail', text: '+1 Mult permanent à un corail de votre choix',
+        act: (r) => { r.pending = { purpose: 'fortify', then: 'map' }; return null; } },
+      { label: 'Se laisser porter', text: '+3 perles, +1 🫧 si besoin',
+        act: (r) => { r.pearls += 3; r.oxygen = Math.min(r.oxygenMax, r.oxygen + 1); return 'Le courant vous dépose plus loin, reposé.'; } },
+    ],
+  },
+  pecheurs: {
+    title: 'Les pêcheurs', emoji: '🎣',
+    text: 'Un filet descend de la surface. Les pêcheurs proposent un marché par signes.',
+    choices: [
+      { label: 'Leur céder une créature', text: '+7 perles', ok: (r) => r.bag.length > 6,
+        act: (r) => { r.pending = { purpose: 'sell', then: 'map' }; return null; } },
+      { label: 'Acheter leur prise (8 perles)', text: 'Une créature rare au hasard', ok: (r) => r.pearls >= 8,
+        act: (r) => { r.pearls -= 8; const pool = Object.keys(CREATURES).filter((k) => CREATURES[k].rar === 'r'); const t = pick(r, pool); addCreature(r, t); return `Vous obtenez : ${CREATURES[t].emoji} ${CREATURES[t].name} !`; } },
+      { label: 'Couper le filet', text: '', act: () => 'Le filet remonte, vide.' },
+    ],
+  },
+  grotte: {
+    title: 'La grotte phosphorescente', emoji: '🔮',
+    text: 'Une grotte baigne dans une lueur bleutée. Les créatures qui y entrent en ressortent changées.',
+    choices: [
+      { label: 'Y guider une créature', text: 'Améliorez une créature ★',
+        act: (r) => { r.pending = { purpose: 'upgrade', then: 'map' }; return null; } },
+      { label: 'Explorer le fond', text: '50 % : un artefact. 50 % : −1 🫧', ok: (r) => artifactOffers(r, 1).length,
+        act: (r) => {
+          if (rnd(r) < 0.5) { const a = artifactOffers(r, 1)[0]; addArtifact(r, a); return `Trouvé : ${ARTIFACTS[a].emoji} ${ARTIFACTS[a].name} !`; }
+          r.oxygen--; if (r.oxygen <= 0) { endRun(r, false); return 'Vous vous perdez dans le noir…'; }
+          return 'Vous vous égarez et remontez à bout de souffle. (−1 Oxygène)';
+        } },
+    ],
+  },
+  mue: {
+    title: 'La mue', emoji: '🦞',
+    text: 'Une carapace vide flotte entre deux eaux. L’occasion de laisser derrière vous ce qui vous alourdit.',
+    choices: [
+      { label: 'Alléger votre banc', text: 'Retirez une créature gratuitement', ok: (r) => r.bag.length > 6,
+        act: (r) => { r.pending = { purpose: 'remove', then: 'map' }; return null; } },
+      { label: 'Garder la carapace', text: '+1 Bernard-l’ermite', act: (r) => { addCreature(r, 'bernard'); return 'Un Bernard-l’ermite s’y installe aussitôt.'; } },
+    ],
+  },
+  epave: {
+    title: 'L’épave du sous-marin', emoji: '⚙️',
+    text: 'Un vieux sous-marin rouillé. Son sas est encore étanche : un abri parfait pour une nouvelle colonie.',
+    choices: [
+      { label: 'Planter une bouture', text: 'Un corail au hasard (si vous avez de la place), −8 perles', ok: (r) => r.pearls >= 8 && r.corals.length < BASE.maxCorals,
+        act: (r) => { r.pearls -= 8; const t = coralOffers(r, 1)[0]; addCoral(r, t); return `Un nouveau corail pousse : ${CORALS[t].emoji} ${CORALS[t].name} !`; } },
+      { label: 'Récupérer la ferraille', text: '+6 perles', act: (r) => { r.pearls += 6; return 'Quelques pièces se revendront bien.'; } },
+    ],
+  },
+};
+function pickEvent(run) { return pick(run, Object.keys(EVENTS)); }
+
+export function eventChoose(run, i) {
+  const ev = EVENTS[run.event.id];
+  const ch = ev.choices[i];
+  if (!ch || (ch.ok && !ch.ok(run))) return false;
+  const msg = ch.act(run);
+  if (run.phase === 'end') return true;
+  if (run.pending) return true; // un choix de créature/corail suit
+  run.event.msg = msg;
+  run.event.done = true;
+  return true;
 }
