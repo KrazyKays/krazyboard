@@ -388,7 +388,7 @@ export const DEPTHS = [
 
 // Règles de base.
 export const BASE = {
-  hand: 7, tides: 4, remous: 3, oxygen: 3, maxCorals: 5,
+  hand: 7, tides: 4, remous: 3, oxygen: 3, maxCorals: 4,
   // Départ : `startCorals` coraux et `startBag` créatures communes au hasard,
   // puis `draftRounds` choix de 1 créature parmi 3.
   startCorals: 2, startBag: 9, draftRounds: 3,

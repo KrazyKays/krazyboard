@@ -310,6 +310,11 @@ body.dragging .card[data-action]:hover { transform: none; }
 .modal h3 { color: var(--accent2); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
 .coll { flex: 1; min-height: 0; width: 100%; display: grid; gap: 6px; justify-content: center; align-content: center;
   grid-template-columns: repeat(var(--cols), minmax(0, 140px)); grid-template-rows: repeat(var(--rows), minmax(0, 120px)); }
+.coll-groups { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.coll-group { flex: var(--rows) 1 20px; min-height: 20px; max-height: calc(var(--rows) * 126px + 20px); display: flex; flex-direction: column; }
+.coll-group h3 { flex: none; line-height: 20px; }
+.modal.coral-drop { height: auto; overflow: auto; }
+.coral-drop .offer { flex-wrap: wrap; }
 .coll .card.mini { width: 100%; height: 100%; min-height: 0; }
 .coll .offer-item { position: relative; min-height: 0; height: 100%; }
 .coll .offer-item > :not(.card) { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); background: #0b3350; color: var(--accent2); border-radius: 6px; padding: 0 4px; font-size: 10px; white-space: nowrap; pointer-events: none; }

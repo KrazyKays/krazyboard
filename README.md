@@ -46,6 +46,7 @@ une pastille pâle signale qu'il ne manque plus qu'une créature pour compléter
 Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes** sont tirés au hasard, puis vous faites
 **3 choix de 1 créature parmi 3** pour donner une direction à votre récif. Chaque offre indique ce qu'elle apporte.
 
+- **Récif limité** 🪸 : 4 coraux au maximum. En prendre un cinquième oblige à en retirer un parmi les 5.
 - **Écosystèmes** 🌿 : le nombre de créatures d'une même famille dans le banc débloque un bonus à deux paliers.
 - **Mutations** 🧬 : un modificateur posé sur une créature précise (Écho, Fidèle, Caméléon, Géante…). Nurserie, comptoir,
   épaves et gardiens en proposent, et certaines récompenses sont déjà mutées.
@@ -59,6 +60,7 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
 
 - **Carte à embranchements** pour chacune des 3 zones (Lagon → Tombant → Abysses) : 🐟 plongées, 💀 plongées
   périlleuses (avec condition, rapportent un artefact), ❓ épaves (événements à choix), ⚓ comptoir, 🌱 nurserie.
+  Aucun nœud n'offre tout ce qu'offre son voisin avec des choix en plus : chaque route en ferme d'autres.
 - **Gardiens** 👑 annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
   son récif en conséquence. Le vaincre fait pousser un **nouveau corail**.
 - **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien y met fin aussitôt.

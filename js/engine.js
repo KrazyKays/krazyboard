@@ -36,7 +36,7 @@ export function seedFrom(str) {
 }
 
 export const has = (run, a) => run.artifacts.includes(a);
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 const nid = (run) => run.nextId++;
 export const inst = (run, id) => run.bag.find((c) => c.id === id);
 export const defOf = (run, id) => CREATURES[inst(run, id).t];
@@ -213,6 +213,13 @@ export function addCoral(run, t) {
   run.corals.push(c);
   return c;
 }
+// Récif plein : le nouveau corail pousse, puis le joueur en retire un parmi tous.
+export const reefFull = (run) => run.corals.length >= BASE.maxCorals;
+function gainCoral(run, t, then) {
+  const c = addCoral(run, t);
+  if (run.corals.length > BASE.maxCorals) run.pending = { purpose: 'dropcoral', newId: c.id, then };
+  return c;
+}
 export function addArtifact(run, a) {
   if (has(run, a)) return;
   run.artifacts.push(a);
@@ -221,8 +228,7 @@ export function addArtifact(run, a) {
 export const price = (run, p) => (run.depth >= 4 ? Math.ceil(p * 1.25) : p);
 
 // ── Carte de la zone ────────────────────────────────────────
-// 6 rangées de 3 couloirs, puis le gardien. Chaque nœud mène aux nœuds
-// des couloirs voisins de la rangée suivante.
+// 5 rangées de 2 ou 3 nœuds, la nurserie où tout converge, puis le gardien.
 const ROW_TYPES = [
   [['dive', 1]],
   [['dive', 3], ['event', 2]],
@@ -231,6 +237,15 @@ const ROW_TYPES = [
   [['dive', 3], ['elite', 2], ['event', 2]],
   [['rest', 1]],
 ];
+// Liens possibles entre deux rangées, selon leur nombre de nœuds : pour chaque nœud
+// de gauche à droite, les nœuds qu'il atteint. Aucun nœud n'offre tout ce qu'offre son
+// voisin avec des choix en plus : prendre une route en ferme toujours d'autres, y compris
+// pour le couloir du milieu. Pas de couloirs parallèles non plus, qui ôteraient tout choix.
+const LINK_PATTERNS = {
+  '2>3': [[[0, 1], [1, 2]], [[0, 1], [2]], [[0], [1, 2]]],
+  '3>2': [[[0], [0], [1]], [[0], [1], [1]]],
+  '3>3': [[[0, 1], [0, 2], [1, 2]], [[0, 1], [2], [2]], [[0], [0], [1, 2]]],
+};
 const COND_KEYS = Object.keys(CONDITIONS);
 // Le Léviathan et le Siphon sont trop punitifs avec seulement 2 coraux.
 const condPool = (run) => COND_KEYS.filter((k) => run.zone > 0 || !['leviathan', 'siphon'].includes(k));
@@ -238,7 +253,10 @@ const condPool = (run) => COND_KEYS.filter((k) => run.zone > 0 || !['leviathan',
 export function genMap(run) {
   const rows = [];
   for (let r = 0; r < ROWS_PER_ZONE; r++) {
-    const lanes = rnd(run) < 0.45 ? [0, 1, 2] : shuffle(run, [0, 1, 2]).slice(0, 2).sort();
+    // Après une rangée de 2, toujours 3 : deux rangées de 2 ne formeraient que des couloirs.
+    const wide = r > 0 && rows[r - 1].filter(Boolean).length === 2;
+    let lanes = wide || rnd(run) < 0.7 ? [0, 1, 2] : shuffle(run, [0, 1, 2]).slice(0, 2).sort();
+    if (r === ROWS_PER_ZONE - 1) lanes = [1];
     const row = [null, null, null];
     for (const l of lanes) {
       // Pas deux Comptoirs ni deux élites sur la même rangée.
@@ -257,9 +275,10 @@ export function genMap(run) {
   }
   // Liens
   for (let r = 0; r < ROWS_PER_ZONE - 1; r++) {
-    for (const n of rows[r].filter(Boolean)) {
-      n.links = rows[r + 1].filter((m) => m && Math.abs(m.lane - n.lane) <= 1).map((m) => m.lane);
-    }
+    const from = rows[r].filter(Boolean);
+    const to = rows[r + 1].filter(Boolean);
+    const pattern = to.length === 1 ? from.map(() => [0]) : pick(run, LINK_PATTERNS[`${from.length}>${to.length}`]);
+    from.forEach((n, i) => { n.links = pattern[i].map((j) => to[j].lane); });
   }
   for (const n of rows[ROWS_PER_ZONE - 1].filter(Boolean)) n.links = [1];
   const conds = shuffle(run, condPool(run));
@@ -673,9 +692,7 @@ function finishDive(run) {
     run.bosses++;
     run.oxygen = run.oxygenMax;
     if (run.zone < ZONES.length - 1) {
-      stages.unshift(run.corals.length < BASE.maxCorals
-        ? { kind: 'coral', options: coralOffers(run, 3) }
-        : { kind: 'fortify-all' });
+      stages.unshift({ kind: 'coral', options: coralOffers(run, 3) });
       stages.push({ kind: 'mutation', options: mutationOffers(run, 3) });
     }
   }
@@ -736,9 +753,11 @@ export function rewardChoose(run, value) {
   } else if (st.kind === 'artifact') {
     if (value) addArtifact(run, value); else run.pearls += 4;
   } else if (st.kind === 'coral') {
-    if (value) addCoral(run, value); else run.pearls += 5;
-  } else if (st.kind === 'fortify-all') {
-    for (const c of run.corals) c.lvl++;
+    if (value) {
+      gainCoral(run, value, run.reward.stages.length ? null : 'map');
+      if (run.pending) return;
+    } else if (reefFull(run)) for (const c of run.corals) c.lvl++;
+    else run.pearls += 5;
   } else if (st.kind === 'mutation') {
     if (value) {
       run.pending = { purpose: 'mutate', mut: value, then: run.reward.stages.length ? null : 'map' };
@@ -753,7 +772,7 @@ export function rewardChoose(run, value) {
 export function makeShop(run) {
   const cr = creatureOffers(run, 3).map((t) => ({ t, price: price(run, RARITY[CREATURES[t].rar].price) }));
   const ar = artifactOffers(run, 2).map((a) => ({ a, price: price(run, ARTIFACTS[a].price) }));
-  const co = run.corals.length < BASE.maxCorals ? coralOffers(run, 1).map((t) => ({ t, price: price(run, 14) })) : [];
+  const co = coralOffers(run, 1).map((t) => ({ t, price: price(run, 14) }));
   const mu = mutationOffers(run, 1).map((m) => ({ m, price: price(run, 8) }));
   return { cr, ar, co, mu, reroll: 2 };
 }
@@ -769,7 +788,7 @@ export function shopBuy(run, kind, i) {
   run.pearls -= item.price;
   if (kind === 'cr') addCreature(run, item.t);
   if (kind === 'ar') addArtifact(run, item.a);
-  if (kind === 'co') addCoral(run, item.t);
+  if (kind === 'co') gainCoral(run, item.t, null);
   s[kind][i] = null;
   return true;
 }
@@ -791,7 +810,7 @@ export function shopHeal(run) {
 }
 
 // ── Choix d'une créature / d'un corail (événements, nurserie, comptoir) ──
-// purpose : remove | upgrade | duplicate | sell | fortify | mutate | merge
+// purpose : remove | upgrade | duplicate | sell | fortify | dropcoral | mutate | merge
 export function upgradeAmount(run, c) {
   return Math.max(2, Math.ceil((CREATURES[c.t].pts + c.bonus) * 0.5));
 }
@@ -819,6 +838,12 @@ export function applyPick(run, id) {
     if (!c) return false;
     c.lvl++;
     run.toast = `${CORALS[c.t].emoji} ${CORALS[c.t].name} : +1 Mult permanent.`;
+  } else if (p.purpose === 'dropcoral') {
+    const c = run.corals.find((k) => k.id === id);
+    if (!c) return false;
+    run.corals = run.corals.filter((k) => k !== c);
+    const label = `${CORALS[c.t].emoji} ${CORALS[c.t].name}`;
+    run.toast = c.id === p.newId ? `Vous renoncez à ${label} : votre récif ne change pas.` : `Vous retirez ${label} de votre récif.`;
   } else {
     const c = inst(run, id);
     if (!c) return false;
@@ -963,8 +988,8 @@ export const EVENTS = {
     title: 'L’épave du sous-marin', emoji: '⚙️',
     text: 'Un vieux sous-marin rouillé. Son sas est encore étanche : un abri parfait pour une nouvelle colonie.',
     choices: [
-      { label: 'Planter une bouture', text: 'Un corail au hasard (si vous avez de la place), −8 perles', ok: (r) => r.pearls >= 8 && r.corals.length < BASE.maxCorals,
-        act: (r) => { r.pearls -= 8; const t = coralOffers(r, 1)[0]; addCoral(r, t); return `Un nouveau corail pousse : ${CORALS[t].emoji} ${CORALS[t].name} !`; } },
+      { label: 'Planter une bouture', text: 'Un corail au hasard (récif plein : vous en retirez un), −8 perles', ok: (r) => r.pearls >= 8,
+        act: (r) => { r.pearls -= 8; const t = coralOffers(r, 1)[0]; gainCoral(r, t, 'map'); return `Un nouveau corail pousse : ${CORALS[t].emoji} ${CORALS[t].name} !`; } },
       { label: 'Récupérer la ferraille', text: '+6 perles', act: (r) => { r.pearls += 6; return 'Quelques pièces se revendront bien.'; } },
     ],
   },

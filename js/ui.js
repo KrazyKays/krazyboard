@@ -362,14 +362,12 @@ function renderReward() {
     body = `<h3>Choisissez un artefact</h3><div class="offer">${st.options.map((a) => artifactCard(a, `<button class="btn primary" data-action="reward" data-id="${a}">Prendre</button>`)).join('')}</div>
       <button class="btn ghost" data-action="reward" data-id="">Passer (+4 perles)</button>`;
   } else if (st.kind === 'coral') {
-    body = `<h3>Un nouveau corail pousse dans votre récif</h3><div class="offer">${st.options.map((t) => coralCard(t, { action: 'reward', id: t })).join('')}</div>
-      <button class="btn ghost" data-action="reward" data-id="">Passer (+5 perles)</button>`;
+    const full = E.reefFull(r);
+    body = `<h3>${full ? `Récif plein (${BASE.maxCorals} coraux) : un nouveau corail en remplacerait un` : 'Un nouveau corail pousse dans votre récif'}</h3><div class="offer">${st.options.map((t) => coralCard(t, { action: 'reward', id: t })).join('')}</div>
+      <button class="btn ghost" data-action="reward" data-id="">${full ? 'Passer (+1 Mult à tous vos coraux)' : 'Passer (+5 perles)'}</button>`;
   } else if (st.kind === 'mutation') {
     body = `<h3>Le gardien laisse une trace : choisissez une mutation</h3><div class="offer">${st.options.map((m) => mutationCard(m, `<button class="btn primary" data-action="reward" data-id="${m}">Choisir</button>`)).join('')}</div>
       <button class="btn ghost" data-action="reward" data-id="">Passer (+4 perles)</button>`;
-  } else if (st.kind === 'fortify-all') {
-    body = `<h3>Votre récif est complet</h3><p>Tous vos coraux se fortifient : <b>+1 Mult</b> permanent chacun.</p>
-      <button class="btn primary" data-action="reward" data-id="">Continuer</button>`;
   }
   app.innerHTML = `<div class="screen">${topbar()}<div class="between">${head}${body}</div></div>`;
 }
@@ -403,7 +401,8 @@ function renderShop() {
   const cr = s.cr.map((x, i) => (x ? offerCard({ t: x.t }, { extra: buy('cr', i, x.price) }) : sold)).join('');
   const ar = s.ar.map((x, i) => (x ? artifactCard(x.a, buy('ar', i, x.price)) : '<div class="sold short">Vendu</div>')).join('');
   const mu = (s.mu || []).map((x, i) => (x ? mutationCard(x.m, buy('mu', i, x.price)) : '<div class="sold short">Vendu</div>')).join('');
-  const co = s.co.map((x, i) => (x ? `<div class="offer-item">${coralCard(x.t)}${buy('co', i, x.price)}</div>` : sold)).join('');
+  const swapNote = E.reefFull(r) ? '<div class="hints"><span class="hint">♻️ Récif plein : remplace un corail</span></div>' : '';
+  const co = s.co.map((x, i) => (x ? `<div class="offer-item">${coralCard(x.t)}${swapNote}${buy('co', i, x.price)}</div>` : sold)).join('');
   app.innerHTML = `<div class="screen">${topbar()}${toast()}<div class="between">
     <h2>⚓ Le Comptoir</h2>
     <div class="shop-top">
@@ -488,6 +487,7 @@ const RULES = `
   <li><b>Buffs</b> : chaque bonus actif s’affiche près de son corail avec sa valeur (<b>+1M</b>, <b>×2M</b>). Une pastille pâle signale qu’il ne manque plus qu’une créature.</li></ul>
   <h4>Construire son banc</h4><ul>
   <li><b>Départ</b> : 2 coraux et 9 créatures au hasard, puis 3 choix de 1 créature parmi 3. Les offres penchent vers ce que votre récif et votre banc mettent en valeur.</li>
+  <li><b>Récif</b> 🪸 : 4 coraux au maximum. Si vous en prenez un cinquième, retirez-en un parmi les 5.</li>
   <li><b>Écosystèmes</b> 🌿 : à partir d’un certain nombre de créatures d’une même famille dans votre banc, toute la famille reçoit un bonus.</li>
   <li><b>Mutations</b> 🧬 : un modificateur sur une créature précise (Écho, Fidèle, Caméléon…). Nurserie, comptoir, épaves et gardiens en proposent.</li>
   <li><b>Fusion</b> ★ : deux créatures identiques n’en font plus qu’une, bien plus forte. Un banc plus fin pioche plus souvent ses meilleures cartes.</li>
@@ -507,6 +507,20 @@ function collGrid(n, reserved) {
   return `--cols:${cols};--rows:${Math.ceil(n / cols)}`;
 }
 
+// Cartes réparties en groupes titrés, avec le même nombre de colonnes partout.
+function collGroups(groups, reserved) {
+  const w = Math.min(1276, innerWidth - 76);
+  const h = Math.max(120, innerHeight - reserved - groups.length * 24);
+  const rows = (cols, g) => Math.ceil(g.cards.length / cols);
+  const maxCols = Math.max(1, ...groups.map((g) => g.cards.length));
+  let cols = 1;
+  while (cols < maxCols && (w * groups.reduce((a, g) => a + rows(cols, g), 0)) / (cols * h) > 1.1) cols++;
+  return `<div class="coll-groups">${groups.map((g) => `<div class="coll-group" style="--rows:${rows(cols, g)}">
+    <h3>${g.label} · ${g.cards.length}</h3>
+    ${g.cards.length ? `<div class="coll" style="--cols:${cols};--rows:${rows(cols, g)}">${g.cards.join('')}</div>` : ''}</div>`).join('')}</div>`;
+}
+const bySpecies = (a, b) => a.t.localeCompare(b.t);
+
 function modalHTML() {
   const r = S.run;
   if (r && r.pending) {
@@ -516,21 +530,37 @@ function modalHTML() {
         <h2>🧬 Choisissez une mutation</h2>
         <div class="mut-list">${p.options.map((m) => mutationCard(m, `<button class="btn primary" data-action="mutchoice" data-m="${m}">Choisir</button>`)).join('')}</div></div></div>`;
     }
+    if (p.purpose === 'dropcoral') {
+      return `<div class="modal-bg"><div class="modal wide coral-drop">
+        <h2>🪸 Récif plein : quel corail retirer ?</h2>
+        <p class="muted">Votre récif accueille ${BASE.maxCorals} coraux au maximum. Le corail retiré perd ses améliorations.</p>
+        <div class="offer">${r.corals.map((c) => `<div class="offer-item">${coralCard(c.t, { action: 'pick', id: c.id, lvl: c.lvl, pick: true })}${c.id === p.newId ? '<div class="up">Nouveau</div>' : ''}</div>`).join('')}</div>
+      </div></div>`;
+    }
     const titles = { remove: 'Relâcher une créature', sell: 'Céder une créature aux pêcheurs', upgrade: 'Faire grandir une créature ★', duplicate: 'Dupliquer une créature', fortify: 'Fortifier un corail',
       merge: 'Fusionner deux créatures identiques ★', mutate: p.mut ? `${MUTATIONS[p.mut].emoji} ${MUTATIONS[p.mut].name} : à quelle créature ?` : '' };
     const eligible = r.bag.filter((c) => E.pickable(r, c, p.purpose));
     let items;
+    const pickItem = (c) => {
+      const ex = p.purpose === 'upgrade' ? `<div class="up">+${E.upgradeAmount(r, c)}</div>`
+        : p.purpose === 'mutate' && c.mut ? `<div class="up">remplace ${MUTATIONS[c.mut].name}</div>` : '';
+      return `<div class="offer-item">${creatureCard(c, { action: 'pick', pick: true, mini: true })}${ex}</div>`;
+    };
+    const sorted = [...eligible].sort(bySpecies);
     if (p.purpose === 'fortify') {
       items = r.corals.map((c) => coralCard(c.t, { action: 'pick', id: c.id, lvl: c.lvl, pick: true, mini: true })).join('');
-    } else {
-      items = [...eligible].sort((a, b) => a.t.localeCompare(b.t)).map((c) => {
-        const ex = p.purpose === 'upgrade' ? `<div class="up">+${E.upgradeAmount(r, c)}</div>` : '';
-        return `<div class="offer-item">${creatureCard(c, { action: 'pick', pick: true, mini: true })}${ex}</div>`;
-      }).join('');
+    } else if (p.purpose !== 'mutate') {
+      items = sorted.map(pickItem).join('');
     }
+    const list = p.purpose === 'mutate'
+      ? collGroups([
+        { label: 'Sans mutation', cards: sorted.filter((c) => !c.mut).map(pickItem) },
+        { label: 'Déjà mutées', cards: sorted.filter((c) => c.mut).map(pickItem) },
+      ], 130)
+      : `<div class="coll" style="${collGrid(p.purpose === 'fortify' ? r.corals.length : eligible.length, 130)}">${items}</div>`;
     return `<div class="modal-bg"><div class="modal wide">
       <h2>${titles[p.purpose]}${p.cost ? ` · 🦪 ${p.cost}` : ''}</h2>
-      <div class="coll" style="${collGrid(p.purpose === 'fortify' ? r.corals.length : eligible.length, 130)}">${items}</div>
+      ${list}
       ${p.cancel ? '<button class="btn" data-action="pickcancel">Annuler</button>' : ''}</div></div>`;
   }
   if (!S.modal) return '';
@@ -540,13 +570,29 @@ function modalHTML() {
       <button class="btn primary" data-action="closemodal">Compris !</button></div></div>`;
   }
   if (S.modal === 'bag') {
-    const d = r.dive;
-    const where = (id) => (!d ? '' : d.hand.includes(id) ? 'en main' : d.draw.includes(id) ? 'pioche' : d.discard.includes(id) ? 'défausse' : d.exhausted.includes(id) ? 'épuisée' : 'récif');
-    const items = [...r.bag].sort((a, b) => a.t.localeCompare(b.t)).map((c) => `<div class="offer-item">${creatureCard(c, { mini: true })}${d ? `<div class="muted">${where(c.id)}</div>` : ''}</div>`).join('');
+    // Pendant une plongée, le banc se lit par pile. Tri par espèce dans chacune :
+    // l'ordre réel de la pioche reste secret.
+    const d = r.phase === 'dive' ? r.dive : null;
+    const sorted = [...r.bag].sort(bySpecies);
+    const item = (c, note = '') => `<div class="offer-item">${creatureCard(c, { mini: true })}${note ? `<div class="muted">${note}</div>` : ''}</div>`;
+    const reserved = 200 + Math.max(72, Math.min(100, innerHeight * 0.12));
+    let list = `<div class="coll" style="${collGrid(r.bag.length, reserved)}">${sorted.map((c) => item(c)).join('')}</div>`;
+    if (d) {
+      const piles = [d.discard, d.draw, d.exhausted];
+      const inPile = (pile) => sorted.filter((c) => pile.includes(c.id)).map((c) => item(c));
+      const inPlay = sorted.filter((c) => !piles.some((pile) => pile.includes(c.id)));
+      const groups = [
+        { label: '♻ Défausse', cards: inPile(d.discard) },
+        { label: '🂠 Pioche', cards: inPile(d.draw) },
+        { label: '🌊 En jeu', cards: inPlay.map((c) => item(c, d.hand.includes(c.id) ? 'en main' : 'récif')) },
+      ];
+      if (d.exhausted.length) groups.push({ label: '💨 Épuisées', cards: inPile(d.exhausted) });
+      list = collGroups(groups, reserved);
+    }
     return `<div class="modal-bg" data-action="closemodal"><div class="modal wide" data-stop>
       <h2>Votre banc · ${r.bag.length} créatures</h2>
       <div class="eco-row">${ecoChips(r)}</div>
-      <div class="coll" style="${collGrid(r.bag.length, 200 + Math.max(72, Math.min(100, innerHeight * 0.12)))}">${items}</div>
+      ${list}
       <div class="bag-foot">
         <div><h3>Coraux</h3><div class="list">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
         ${r.artifacts.length ? `<div><h3>Artefacts</h3><div class="list">${r.artifacts.map(artifactChip).join('')}</div></div>` : ''}
