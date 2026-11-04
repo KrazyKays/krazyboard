@@ -232,6 +232,21 @@ h2, h3, p { margin: 0; }
 .hand-row > .card:hover { transform: translateY(-8px) scale(1.08); transform-origin: bottom center; }
 .empty-note { color: var(--muted); font-style: italic; padding: 20px; }
 
+/* Glisser-déposer */
+.hand-row > .card[data-action="hand"], .slot.movable { cursor: grab; touch-action: none; }
+.slot.movable { user-select: none; }
+.drag-src { opacity: .3; }
+body.dragging, body.dragging * { cursor: grabbing !important; }
+body.dragging .card[data-action]:hover { transform: none; }
+.slot.target.drop-over { animation: none; background: rgba(62,230,193,.65); box-shadow: 0 0 0 3px var(--accent); }
+.slot.swap { border-style: dashed; border-color: var(--accent2); }
+.slot.swap.drop-over { border-style: solid; box-shadow: 0 0 0 3px var(--accent2); filter: brightness(1.25); }
+.slot.swap.drop-over::after { content: "⇄"; position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: calc(var(--cell) * .4); color: var(--accent2); background: rgba(0,0,0,.55); }
+#drag-ghost { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none; opacity: .92; will-change: transform; }
+#drag-ghost.over-slot { opacity: .35; }
+#drag-ghost .card { box-shadow: 0 12px 30px rgba(0,0,0,.6); }
+#drop-mark { position: fixed; z-index: 89; width: 4px; margin-left: -2px; border-radius: 2px; pointer-events: none; background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+
 /* Écosystèmes */
 .eco-row { display: flex; flex-wrap: wrap; gap: 4px; }
 .between .eco-row, .modal .eco-row { justify-content: center; }

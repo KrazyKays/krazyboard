@@ -283,7 +283,7 @@ function renderDive() {
       return `<div class="slot s-${s} blocked" data-tip="${kr ? 'Bloqué par le Kraken pour cette marée' : 'Emplacement inexistant sur ce corail'}">${kr ? '🦑' : '✖'}</div>`;
     }
     const t = placing && sel && E.canPlace(r, sel, ci, s);
-    return `<div class="slot s-${s} ${t ? 'target' : ''}" ${t ? `data-action="place" data-ci="${ci}" data-s="${s}"` : ''}>
+    return `<div class="slot s-${s} ${t ? 'target' : ''}" data-ci="${ci}" data-s="${s}" ${t ? 'data-action="place"' : ''}>
       <span class="ph">${SLOT_ICON[s]}</span><span class="lb">${SLOT_LABEL[s]}</span></div>`;
   };
   // Buffs du corail : une pastille par bonus, avec sa valeur (+1M, ×2M…).
@@ -318,7 +318,7 @@ function renderDive() {
         <button class="btn primary" data-action="remousok" ${ui.rsel.length ? '' : 'disabled'}>Remuer ${ui.rsel.length || ''}</button>
         <button class="btn ghost" data-action="remouscancel">Annuler</button>`;
     } else {
-      const tip = sel ? 'Choisissez un emplacement <span class="glow">en surbrillance</span>.' : 'Sélectionnez une créature de votre main puis un emplacement autour d’un corail.';
+      const tip = sel ? 'Choisissez un emplacement <span class="glow">en surbrillance</span>.' : 'Glissez une créature vers un emplacement autour d’un corail, ou cliquez sur l’une puis sur l’autre. Glissez-la dans la main pour la ranger.';
       bar = `<div class="msg">Marée <b>${d.tide}/${d.tidesMax}</b> — ${tip}${info.factors.length ? ` <span class="badge">${info.factors.join(' · ')}</span>` : ''}</div>
         <button class="btn" data-action="remous" ${d.remous > 0 && d.hand.length ? '' : 'disabled'}>🌀 Remous (${d.remous})</button>
         <button class="btn primary big" data-action="launch" ${n || !d.hand.length ? '' : 'disabled'}>Lancer la marée 🌊 <span class="proj-btn">+${fmt(info.total)}</span></button>`;
@@ -496,7 +496,8 @@ const RULES = `
   <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien y met fin aussitôt.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
   Vaincre l’expédition débloque une <b>Profondeur</b> plus difficile.</p>
-  <h4>Astuce</h4><p>Survolez une créature ou un corail du récif, ou une carte du banc, pour la lire en grand.</p>`;
+  <h4>Astuces</h4><p>Survolez une créature ou un corail du récif, ou une carte du banc, pour la lire en grand.
+  Glissez-déposez les créatures pour les poser, les déplacer ou les échanger sur le récif, les reprendre en main ou choisir l’ordre de votre main.</p>`;
 
 // Grille calculée pour que toutes les cartes tiennent dans la fenêtre.
 function collGrid(n, reserved) {
@@ -576,8 +577,8 @@ const TUTO = [
   { title: 'Posez une créature',
     target: () => (S.ui.sel ? '.reef' : '.hand [data-t="sardine"]'),
     text: () => (S.ui.sel
-      ? `Cliquez sur un emplacement <span class="glow">en surbrillance</span>, par exemple la <b>Surface ⬆</b> du premier corail.`
-      : `Cliquez sur les <b>Sardines</b> : vous les poserez ensuite autour d'un corail.`),
+      ? `Cliquez sur un emplacement <span class="glow">en surbrillance</span> (vous pouvez aussi y glisser la carte), par exemple la <b>Surface ⬆</b> du premier corail.`
+      : `Cliquez sur les <b>Sardines</b> ou faites-les glisser : vous les poserez autour d'un corail.`),
     done: () => E.boardCount(S.run) >= 1 },
   { title: 'Soignez les voisinages',
     target: () => (S.ui.sel ? '.reef' : '.hand [data-t="crevette"]'),
@@ -709,6 +710,7 @@ function showTip(el) {
 }
 function hideHover() { hideZoom(); hideTip(); }
 document.addEventListener('mouseover', (ev) => {
+  if (drag?.ghost) return;
   const zoom = ev.target.closest('[data-zoom]');
   let tip = ev.target.closest('[data-tip]');
   // Sur une mini-carte, l'aperçu agrandi dit déjà tout ; une pastille posée sur une case garde sa bulle.
@@ -848,7 +850,136 @@ const handlers = {
   rest: (el) => E.restChoose(S.run, el.dataset.w),
 };
 
+// ── Glisser-déposer : poser, déplacer, reprendre et ranger les créatures ─
+// Le récif et la main ne sont pas redessinés pendant le geste : sur écran
+// tactile, retirer l'élément touché interromprait le glissement.
+const DRAG_THRESHOLD = 6;
+let drag = null;
+let swallowClick = false;
+let swallowTimer = null;
+function releaseClicks() {
+  if (swallowClick) swallowTimer = setTimeout(() => { swallowClick = false; }, 50);
+}
+
+function startDrag() {
+  const d = drag;
+  swallowClick = true;
+  hideHover();
+  document.body.classList.add('dragging');
+  d.el.classList.add('drag-src');
+  d.ghost = document.createElement('div');
+  d.ghost.id = 'drag-ghost';
+  d.ghost.innerHTML = creatureCard(E.inst(S.run, d.id));
+  d.mark = document.createElement('div');
+  d.mark.id = 'drop-mark';
+  d.mark.hidden = true;
+  document.body.append(d.ghost, d.mark);
+  for (const s of app.querySelectorAll('.slot:not(.full):not(.blocked)')) s.classList.add('target');
+  for (const s of app.querySelectorAll('.slot.movable')) if (s !== d.el) s.classList.add('swap');
+}
+
+function handDropIndex(x) {
+  const row = app.querySelector('.hand-row');
+  const cards = [...row.querySelectorAll(':scope > .card')].filter((c) => c !== drag.el).map((c) => c.getBoundingClientRect());
+  const index = cards.filter((c) => c.left + c.width / 2 < x).length;
+  const box = row.getBoundingClientRect();
+  let markX = box.left + box.width / 2;
+  if (cards.length) markX = index < cards.length ? cards[index].left - 3 : cards[index - 1].right + 3;
+  return { index, markX, top: box.top, height: box.height };
+}
+
+function trackDrop(x, y) {
+  const d = drag;
+  d.ghost.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(-3deg) scale(.6)`;
+  const hit = document.elementFromPoint(x, y);
+  const slot = hit?.closest('.slot.target, .slot.swap');
+  d.over?.classList.remove('drop-over');
+  d.over = slot || null;
+  slot?.classList.add('drop-over');
+  d.ghost.classList.toggle('over-slot', !!slot);
+  d.drop = slot ? { ci: +slot.dataset.ci, s: slot.dataset.s } : null;
+  d.mark.hidden = true;
+  // Toute la bande de la main compte, y compris au-delà de ses bords.
+  if (!slot && y >= app.querySelector('.hand').getBoundingClientRect().top) {
+    const h = handDropIndex(x);
+    d.drop = { index: h.index };
+    d.mark.hidden = false;
+    Object.assign(d.mark.style, { left: `${h.markX}px`, top: `${h.top}px`, height: `${h.height}px` });
+  }
+}
+
+function endDrag() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  document.body.classList.remove('dragging');
+  d.el.classList.remove('drag-src');
+  d.over?.classList.remove('drop-over');
+  d.ghost?.remove();
+  d.mark?.remove();
+  for (const s of app.querySelectorAll('.slot:not(.full):not(.blocked)')) {
+    if (s.dataset.action !== 'place') s.classList.remove('target');
+  }
+  for (const s of app.querySelectorAll('.slot.swap')) s.classList.remove('swap');
+}
+
+function commitDrop(d) {
+  const r = S.run;
+  const handPos = r.dive.hand.indexOf(d.id);
+  if (d.from) E.unplace(r, d.from.ci, d.from.s);
+  if (d.drop.s) {
+    // Emplacement occupé : l'occupant prend la place que quitte la créature déposée.
+    const occupant = E.unplace(r, d.drop.ci, d.drop.s);
+    if (occupant && d.from) E.place(r, occupant, d.from.ci, d.from.s);
+    else if (occupant) E.moveInHand(r, occupant, handPos);
+    const notes = E.place(r, d.id, d.drop.ci, d.drop.s);
+    r.toast = notes && notes.length ? notes.join(' · ') : null;
+  } else {
+    E.moveInHand(r, d.id, d.drop.index);
+  }
+  if (S.ui.sel === d.id) S.ui.sel = null;
+}
+
+app.addEventListener('pointerdown', (ev) => {
+  // Un nouvel appui : le clic du geste précédent ne peut plus arriver.
+  clearTimeout(swallowTimer);
+  swallowClick = false;
+  if (ev.button !== 0 || !ev.isPrimary || drag || S.ui.remous) return;
+  const el = ev.target.closest('.hand-row > .card[data-action="hand"], .slot.movable');
+  if (!el) return;
+  const from = el.matches('.slot') ? { ci: +el.dataset.ci, s: el.dataset.s } : null;
+  const id = from ? S.run.dive.board[from.ci][from.s].id : +el.dataset.id;
+  drag = { el, id, from, pointerId: ev.pointerId, x: ev.clientX, y: ev.clientY };
+});
+
+document.addEventListener('pointermove', (ev) => {
+  if (!drag || ev.pointerId !== drag.pointerId) return;
+  if (!(ev.buttons & 1)) { endDrag(); return; }
+  if (!drag.ghost) {
+    if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < DRAG_THRESHOLD) return;
+    startDrag();
+  }
+  trackDrop(ev.clientX, ev.clientY);
+});
+
+document.addEventListener('pointerup', (ev) => {
+  releaseClicks();
+  if (!drag || ev.pointerId !== drag.pointerId) return;
+  const d = drag;
+  endDrag();
+  if (!d.ghost || !d.drop) return;
+  commitDrop(d);
+  afterAction();
+  render();
+});
+
+document.addEventListener('pointercancel', () => {
+  releaseClicks();
+  endDrag();
+});
+
 app.addEventListener('click', (ev) => {
+  if (swallowClick) return;
   const el = ev.target.closest('[data-action]');
   if (!el) return;
   if (el.dataset.action === 'closemodal' && el.classList.contains('modal-bg') && ev.target.closest('[data-stop]')) return;
@@ -861,11 +992,12 @@ app.addEventListener('click', (ev) => {
 
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
+  if (drag) { endDrag(); return; }
   if (S.modal) S.modal = null;
   else if (S.run && S.run.phase === 'dive') resetUI();
   render();
 });
 
-window.addEventListener('resize', render);
+window.addEventListener('resize', () => { endDrag(); render(); });
 
 render();

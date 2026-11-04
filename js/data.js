@@ -294,9 +294,9 @@ export const CORALS = {
 
 // Bonus de couronne (sur chaque corail).
 export const CROWNS = {
-  full:   { name: 'Couronne complète', icon: '💠', text: 'Tous les emplacements occupés : +1 Mult.' },
-  banc:   { name: 'Banc', icon: '🎯', text: 'Couronne complète d’une seule famille : Mult ×2.' },
-  mosaic: { name: 'Mosaïque', icon: '🌈', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
+  full:   { name: 'Couronne complète', icon: '💠', text: (n = 1) => `Tous les emplacements occupés : +${n} Mult.` },
+  banc:   { name: 'Banc', icon: '🎯', text: (n = 2) => `Couronne complète d’une seule famille : Mult ×${n}.` },
+  mosaic: { name: 'Mosaïque', icon: '🌈', text: (n = 1.5) => `Couronne complète, toutes familles différentes : Mult ×${String(n).replace('.', ',')}.` },
 };
 
 // ── Artefacts (passifs pour toute l'expédition) ─────────────

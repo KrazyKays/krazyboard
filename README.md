@@ -35,6 +35,8 @@ Toute la profondeur tactique vient des **associations** :
 
 Une plongée = atteindre un **objectif** en 4 marées, avec quelques **Remous** 🌀 (défausser pour repiocher).
 Les créatures non posées restent en main, et les **Sédentaires** restent sur le récif d'une marée à l'autre.
+Tout se joue au clic ou en **glisser-déposer** (souris et tactile) : poser une créature, la déplacer ou l'échanger sur le récif,
+la reprendre en main ou choisir l'ordre de sa main.
 
 Chaque bonus actif s'affiche près de son corail avec sa valeur (`💠 Couronne complète +1M`, `🎯 Banc ×2M`…) ;
 une pastille pâle signale qu'il ne manque plus qu'une créature pour compléter la couronne.

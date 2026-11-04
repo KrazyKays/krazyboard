@@ -427,6 +427,16 @@ export function unplace(run, ci, slot) {
   return cell.id;
 }
 
+// Range une créature de la main : `index` est sa position une fois retirée de la main.
+export function moveInHand(run, id, index) {
+  const d = run.dive;
+  const from = d.hand.indexOf(id);
+  if (d.phase !== 'place' || from < 0) return false;
+  d.hand.splice(from, 1);
+  d.hand.splice(Math.max(0, Math.min(index, d.hand.length)), 0, id);
+  return true;
+}
+
 export function doRemous(run, ids) {
   const d = run.dive;
   if (d.phase !== 'place' || d.remous <= 0 || !ids.length) return false;
@@ -534,20 +544,21 @@ export function scoreTide(run) {
     if (full && !hasCond(run, 'fantome')) {
       const fullM = has(run, 'conque') ? 3 : 1;
       mult += fullM;
-      buffs.push({ icon: CROWNS.full.icon, name: CROWNS.full.name, val: `+${fullM}M`, text: CROWNS.full.text, crown: true });
+      buffs.push({ icon: CROWNS.full.icon, name: CROWNS.full.name, val: `+${fullM}M`, text: CROWNS.full.text(fullM), crown: true });
       if (on.length >= 3) {
         const fams = on.filter((x) => !x.allFam).map((x) => x.def.fam);
         const uniq = new Set(fams).size;
         if (uniq <= 1) {
           const n = has(run, 'ecaille') ? 3 : 2;
-          xm *= n; addX(CROWNS.banc.icon, CROWNS.banc.name, n, CROWNS.banc.text, true);
+          xm *= n; addX(CROWNS.banc.icon, CROWNS.banc.name, n, CROWNS.banc.text(n), true);
         } else if (uniq === fams.length) {
           const n = has(run, 'prisme') ? 2 : 1.5;
-          xm *= n; addX(CROWNS.mosaic.icon, CROWNS.mosaic.name, n, CROWNS.mosaic.text, true);
+          xm *= n; addX(CROWNS.mosaic.icon, CROWNS.mosaic.name, n, CROWNS.mosaic.text(n), true);
         }
       }
     } else if (!full && !hasCond(run, 'fantome') && on.length > 0 && openSlots(run, ci).length - on.length === 1) {
-      buffs.push({ icon: CROWNS.full.icon, name: CROWNS.full.name, val: `+${has(run, 'conque') ? 3 : 1}M`, text: `Plus qu’un emplacement à occuper. ${CROWNS.full.text}`, crown: true, hint: true });
+      const fullM = has(run, 'conque') ? 3 : 1;
+      buffs.push({ icon: CROWNS.full.icon, name: CROWNS.full.name, val: `+${fullM}M`, text: `Plus qu’un emplacement à occuper. ${CROWNS.full.text(fullM)}`, crown: true, hint: true });
     }
     mult = Math.max(1, mult);
     const multTot = Math.round(mult * xm * 100) / 100;
