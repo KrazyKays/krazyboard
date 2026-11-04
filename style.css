@@ -158,3 +158,4 @@ button { font: inherit; }
   .coral { grid-template-columns: 74px 74px 74px; grid-template-rows: 58px 78px 58px; }
   .card { width: 132px; } .card.small { width: 116px; }
 }
+.pixel-logo { image-rendering: pixelated; display: block; margin: 0 auto 6px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.4); }

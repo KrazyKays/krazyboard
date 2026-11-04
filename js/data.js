@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-//  Récif Mêlé — données du jeu (coraux, créatures, trésors…)
+//  Krazy Sea — données du jeu (coraux, créatures, trésors…)
 // ─────────────────────────────────────────────────────────────
 
 // Familles de coraux. Chaque carte créature porte aussi la couleur

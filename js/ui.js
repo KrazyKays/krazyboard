@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-//  Récif Mêlé — interface
+//  Krazy Sea — interface
 // ─────────────────────────────────────────────────────────────
 import { CORALS, SPECIES, TREASURES, MODIFIERS, DIVES, DIVERS, POS_LABEL, POS_ICON } from './data.js';
 import * as E from './engine.js';
 
 const app = document.getElementById('app');
-const SAVE_KEY = 'recif-mele-save-v1';
-const META_KEY = 'recif-mele-meta-v1';
+const SAVE_KEY = 'krazy-sea-save-v1';
+const META_KEY = 'krazy-sea-meta-v1';
 
 const S = {
   screen: 'title',   // title | dive | reward | shop | end
@@ -89,7 +89,7 @@ function renderTitle() {
       <div class="tx">${locked ? v.unlock.text : v.text}</div></button>`;
   }).join('');
   app.innerHTML = `<div class="title-screen">
-    <div class="logo">🪸 Récif Mêlé 🐠</div>
+    <img class="pixel-logo" src="favicon.svg" alt="" width="96" height="96"><div class="logo">Krazy Sea</div>
     <p class="pitch">Faites pousser des coraux, attirez-y poissons, crustacés et mammifères marins,
     et enchaînez <b>six plongées</b> de plus en plus exigeantes. Entre deux plongées, enrichissez votre collection de cartes
     et dénichez des trésors. Une seule erreur… et l'expédition s'arrête.</p>
@@ -323,7 +323,7 @@ function modalHTML() {
   if (!S.modal) return '';
   if (S.modal === 'rules') {
     return `<div class="modal-bg" data-action="closemodal"><div class="modal rules" data-stop>
-      <h2>Règles de Récif Mêlé</h2>
+      <h2>Règles de Krazy Sea</h2>
       <h4>But</h4><p>Enchaîner six plongées. À chaque plongée, atteignez l'<b>objectif de points</b> avant que les <b>Marées</b> 🌊 ne montent toutes. Votre collection de cartes et vos trésors vous suivent d'une plongée à l'autre.</p>
       <h4>À votre tour</h4><p>Faites <b>une</b> action :</p>
       <ul><li><b>Piocher</b> : prenez 2 cartes, une par une, depuis la pioche et/ou le <b>Courant</b> (les cartes face visible). Main limitée à 10.</li>

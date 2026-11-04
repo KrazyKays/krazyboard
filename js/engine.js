@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-//  Récif Mêlé — moteur de jeu (indépendant de l'affichage)
+//  Krazy Sea — moteur de jeu (indépendant de l'affichage)
 // ─────────────────────────────────────────────────────────────
 import {
   CORALS, SPECIES, FAMILIES, STARTER, POOL_COMMON, POOL_RARE,

@@ -1,4 +1,4 @@
-# 🪸 Récif Mêlé
+# <img src="favicon.svg" width="32" alt=""> Krazy Sea
 
 Jeu de cartes **solo roguelite** jouable dans le navigateur, inspiré des mécaniques de *Forêt Mixte*
 (cartes à poser autour d'un « arbre », cartes à deux moitiés, clairière partagée, fin de partie déclenchée
