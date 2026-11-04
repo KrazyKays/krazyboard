@@ -61,6 +61,19 @@ export function newRun({ diverId = 'exploratrice', depth = 0, seed, daily = fals
   return run;
 }
 
+// Expédition du tutoriel : graine fixe et main préparée pour la démonstration.
+export function tutorialRun() {
+  const run = newRun({ seed: 2024 });
+  const first = run.map.rows[0].find(Boolean);
+  enterNode(run, first.row, first.lane);
+  const d = run.dive;
+  const pool = [...d.hand, ...d.draw];
+  const take = (t) => pool.splice(pool.findIndex((id) => inst(run, id).t === t), 1)[0];
+  d.hand = ['sardine', 'crevette', 'meduse', 'sardine', 'tortue', 'crabe', 'loutre'].map(take);
+  d.draw = pool;
+  return run;
+}
+
 export function addCreature(run, t, extra = {}) {
   const c = { id: nid(run), t, bonus: 0, star: 0, ...extra };
   run.bag.push(c);

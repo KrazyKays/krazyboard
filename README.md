@@ -12,6 +12,9 @@ des profondeurs.
   (les modules ES ne se chargent pas en `file://`).
 - En ligne : voir « Déploiement » ci-dessous.
 
+Un **tutoriel** interactif est proposé sur l'écran titre : il se joue sur une expédition d'essai, sans toucher à la sauvegarde.
+Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement.
+
 ## Le cœur du jeu : la couronne
 
 Chaque **corail** est le centre d'une couronne de 4 emplacements : Surface ⬆, Fond ⬇ et deux Flancs ⬅ ➡.

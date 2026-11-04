@@ -31,10 +31,11 @@ const S = {
   diver: 'exploratrice',
   depth: Math.min(meta.depth, 0),
   anim: false,
+  tuto: null,   // { i } pendant le tutoriel : expédition d'essai, jamais sauvegardée
 };
 
 function save() {
-  if (S.run && S.run.phase !== 'end') saveJSON(SAVE_KEY, S.run);
+  if (S.run && !S.tuto && S.run.phase !== 'end') saveJSON(SAVE_KEY, S.run);
 }
 const hasSave = () => { const r = loadJSON(SAVE_KEY, null); return !!(r && r.v === 2 && r.phase !== 'end'); };
 
@@ -43,11 +44,12 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const fmt = (n) => Math.round(n).toLocaleString('fr-FR');
 const today = () => new Date().toISOString().slice(0, 10);
 const plural = (n, s, p = s + 's') => (n > 1 ? p : s);
+const zoomTpl = (html) => `<template>${html}</template>`;
 
 function seen(list, key) { if (!meta[list].includes(key)) { meta[list].push(key); return true; } return false; }
 function trackSeen() {
   const r = S.run;
-  if (!r) return;
+  if (!r || S.tuto) return;
   let ch = false;
   for (const c of r.bag) ch = seen('seenC', c.t) || ch;
   for (const c of r.corals) ch = seen('seenK', c.t) || ch;
@@ -60,13 +62,14 @@ function creatureCard(c, o = {}) {
   const F = FAMILIES[def.fam];
   const pts = def.pts + (c.bonus || 0);
   const stars = c.star ? `<span class="star">${'★'.repeat(Math.min(3, c.star))}</span>` : '';
-  const cls = ['card', `r-${def.rar}`, o.sel && 'sel', o.pick && 'pick', o.chosen && 'chosen', o.small && 'small', o.dim && 'dim']
+  const cls = ['card', `r-${def.rar}`, o.sel && 'sel', o.pick && 'pick', o.chosen && 'chosen', o.mini && 'mini', o.dim && 'dim']
     .filter(Boolean).join(' ');
   const act = o.action ? `data-action="${o.action}" data-id="${o.id ?? c.id}"` : '';
   const tags = [def.allFam ? 'Toutes familles' : F.name, def.sed && 'Sédentaire', def.place && 'Pose', RARITY[def.rar].name]
     .filter(Boolean).join(' · ');
-  return `<div class="${cls}" ${act} style="--fam:${F.color}" title="${esc(`${def.name} — ${def.text}`)}">
-    <div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span><span class="c-pts" title="Éclat de base">${pts}</span></div>
+  const hover = o.mini ? 'data-zoom' : `title="${esc(`${def.name} — ${def.text}`)}"`;
+  return `<div class="${cls}" ${act} data-t="${c.t}" style="--fam:${F.color}" ${hover}>
+    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span><span class="c-pts" title="Éclat de base">${pts}</span></div>
     <div class="c-em">${def.emoji}</div>
     <div class="c-nm">${def.name}${stars}</div>
     <div class="c-tx">${def.text}</div>
@@ -78,8 +81,9 @@ function coralCard(t, o = {}) {
   const k = CORALS[t];
   const act = o.action ? `data-action="${o.action}" data-id="${o.id ?? t}"` : '';
   const lvl = o.lvl ? ` <span class="star">+${o.lvl}</span>` : '';
-  return `<div class="card coral-card r-${k.rar} ${o.pick ? 'pick' : ''}" ${act} style="--fam:${k.color}" title="${esc(`${k.name} — ${k.text}`)}">
-    <div class="c-top"><span class="c-fam">🪸</span><span class="c-pts mult" title="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
+  const hover = o.mini ? 'data-zoom' : `title="${esc(`${k.name} — ${k.text}`)}"`;
+  return `<div class="card coral-card r-${k.rar} ${o.pick ? 'pick' : ''} ${o.mini ? 'mini' : ''}" ${act} style="--fam:${k.color}" ${hover}>
+    ${o.mini ? zoomTpl(coralCard(t, { lvl: o.lvl })) : ''}<div class="c-top"><span class="c-fam">🪸</span><span class="c-pts mult" title="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
     <div class="c-em">${k.emoji}</div>
     <div class="c-nm">${k.name}${lvl}</div>
     <div class="c-tx">${k.text}</div>
@@ -126,8 +130,9 @@ function renderTitle() {
   const depths = DEPTHS.map((dp, i) => (i <= meta.depth
     ? `<button class="btn tiny ${S.depth === i ? 'primary' : ''}" data-action="depth" data-i="${i}" title="${esc(dp.text)}">${i === 0 ? 'Surface' : i}</button>` : '')).join('');
   const daily = meta.daily[today()];
+  const firstTime = !meta.tuto && !meta.runs && !hasSave();
   app.innerHTML = `<div class="title-screen">
-    <img class="pixel-logo" src="favicon.svg" alt="" width="96" height="96">
+    <img class="pixel-logo" src="favicon.svg" alt="">
     <div class="logo">Krazy Sea</div>
     <p class="pitch">Composez des <b>couronnes de créatures</b> autour de vos coraux et déclenchez des combos
     à chaque marée. Choisissez votre route à travers trois zones, recrutez, faites évoluer vos créatures,
@@ -137,10 +142,12 @@ function renderTitle() {
     ${meta.depth > 0 ? `<h3>Profondeur</h3><div class="row">${depths}</div><div class="muted depth-tx">${DEPTHS.slice(1, S.depth + 1).map((d) => d.text).join(' ') || DEPTHS[0].text}</div>` : ''}
     <div class="row main-actions">
       ${hasSave() ? '<button class="btn primary" data-action="continue">Reprendre l’expédition</button>' : ''}
-      <button class="btn ${hasSave() ? '' : 'primary'}" data-action="newrun">Nouvelle expédition</button>
+      ${firstTime ? '<button class="btn primary" data-action="tuto">Tutoriel (conseillé)</button>' : ''}
+      <button class="btn ${hasSave() || firstTime ? '' : 'primary'}" data-action="newrun">Nouvelle expédition</button>
       <button class="btn" data-action="daily" title="Même graine pour tout le monde aujourd’hui">📅 Plongée du jour${daily ? ` (${daily.best})` : ''}</button>
     </div>
     <div class="row">
+      ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
       <button class="btn ghost" data-action="rules">Règles</button>
       <button class="btn ghost" data-action="bestiary">Bestiaire ${meta.seenC.length}/${Object.keys(CREATURES).length}</button>
     </div>
@@ -184,12 +191,12 @@ function renderMap() {
     return `<button class="btn route" data-action="node" data-row="${n.row}" data-lane="${n.lane}">${T.icon} ${T.name}${tg}${n.cond ? ` · ${n.cond.map((k) => CONDITIONS[k].emoji).join('')}` : ''}</button>`;
   }).join('');
   const zoneBg = ZONES[r.zone].bg;
-  app.innerHTML = `<div class="screen map-screen" style="--z1:${zoneBg[0]};--z2:${zoneBg[1]}">${topbar()}${toast()}
+  app.innerHTML = `<div class="screen map-screen" style="--z1:${zoneBg[0]};--z2:${zoneBg[1]}">${topbar()}
     <div class="map-wrap">
       <div class="map-col">
         <svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte de la zone">${lines}${nodes}</svg>
       </div>
-      <div class="map-side">
+      <div class="map-side">${toast()}
         <h3>Choisissez votre route</h3>
         <div class="routes">${next || '<div class="muted">—</div>'}</div>
         <div class="boss-card">
@@ -199,7 +206,7 @@ function renderMap() {
         </div>
         <div class="legend">${Object.entries(NODE_TYPES).map(([, t]) => `<span title="${esc(t.text)}">${t.icon} ${t.name}</span>`).join('')}</div>
         <h3>Votre récif</h3>
-        <div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl })).join('')}</div>
+        <div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div>
       </div>
     </div></div>`;
 }
@@ -245,8 +252,8 @@ function renderDive() {
       const badges = [bk.silenced && '<span class="bdg sil" title="Réduit au silence">🔇</span>', bk.times > 1 && '<span class="bdg x2">×2</span>',
         bk.mult ? `<span class="bdg mul">+${bk.mult} M</span>` : '', cell.lock && '<span class="bdg lock" title="Ne peut plus être déplacé">🔒</span>'].filter(Boolean).join('');
       const can = placing && !cell.lock;
-      return `<div class="slot s-${s} full ${can ? 'movable' : ''}" style="--fam:${F.color}" ${can ? `data-action="unplace" data-ci="${ci}" data-s="${s}"` : ''} title="${esc(`${def.name} — ${def.text}`)}">
-        <span class="em">${def.emoji}</span><span class="nm">${def.name}${c.star ? ' ★' : ''}</span>
+      return `<div class="slot s-${s} full ${can ? 'movable' : ''}" style="--fam:${F.color}" ${can ? `data-action="unplace" data-ci="${ci}" data-s="${s}"` : ''} data-zoom>
+        ${zoomTpl(creatureCard(c))}<span class="em">${def.emoji}</span><span class="nm">${def.name}${c.star ? ' ★' : ''}</span>
         <span class="pts ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35}s">${fmt(bk.pts || 0)}</span>${badges}</div>`;
     }
     if (E.isBlocked(r, ci, s)) {
@@ -257,7 +264,7 @@ function renderDive() {
     return `<div class="slot s-${s} ${t ? 'target' : ''}" ${t ? `data-action="place" data-ci="${ci}" data-s="${s}"` : ''}>
       <span class="ph">${SLOT_ICON[s]}</span><span class="lb">${SLOT_LABEL[s]}</span></div>`;
   };
-  const crownIcons = (tags) => tags.filter((t) => CROWNS[t]).map((t) => `<span class="crown" title="${esc(CROWNS[t].name + ' — ' + CROWNS[t].text)}">${CROWNS[t].icon} ${CROWNS[t].name}</span>`).join('');
+  const crownIcons = (tags) => tags.filter((t) => CROWNS[t]).map((t) => `<span class="crown" title="${esc(CROWNS[t].name + ' — ' + CROWNS[t].text)}">${CROWNS[t].icon}<span class="cn"> ${CROWNS[t].name}</span></span>`).join('');
   const corals = r.corals.map((c, ci) => {
     const k = CORALS[c.t];
     const ci2 = info.corals[ci];
@@ -265,16 +272,16 @@ function renderDive() {
       ? `<div class="bridge ${d.board[ci].E && d.board[ci + 1].W ? 'on' : ''}" title="Pont : le Flanc ➡ et le Flanc ⬅ du corail suivant sont voisins">⋯</div>` : '';
     return `<div class="coral-wrap"><div class="coral" style="--fam:${k.color}">
       ${slotHTML(ci, 'N')}${slotHTML(ci, 'W')}
-      <div class="core" title="${esc(`${k.name} — ${k.text}`)}"><div class="em">${k.emoji}</div><div class="nm">${k.name}</div><div class="mb">Mult ${k.mult + c.lvl}</div></div>
+      <div class="core" data-zoom>${zoomTpl(coralCard(c.t, { lvl: c.lvl }))}<div class="em">${k.emoji}</div><div class="nm">${k.name}</div><div class="mb">Mult ${k.mult + c.lvl}</div></div>
       ${slotHTML(ci, 'E')}${slotHTML(ci, 'S')}
     </div>
     <div class="formula ${ci2.ignored ? 'ignored' : ''} ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35 + 0.15}s">
       <span class="ecl" title="Éclat : somme des créatures">${fmt(ci2.eclat)}</span> × <span class="mlt" title="Mult total">${ci2.multTot}</span> = <b>${fmt(ci2.score)}</b>
-      ${ci2.ignored ? '<div class="ign">🐉 ignoré</div>' : ''}
+      ${ci2.ignored ? '<span class="ign">🐉 ignoré</span>' : ''}
     </div>
     <div class="crowns">${crownIcons(ci2.tags)}</div></div>${bridge}`;
   }).join('');
-  const reef = `<section class="reef"><div class="reef-row">${corals}</div></section>`;
+  const reef = `<section class="reef">${toast()}<div class="reef-row ${innerWidth / r.corals.length < 260 || innerHeight < 640 ? 'dense' : ''}" style="--n:${r.corals.length}">${corals}</div></section>`;
 
   // Barre d'action
   let bar;
@@ -292,7 +299,7 @@ function renderDive() {
     }
   } else {
     const L = d.last;
-    const notes = L.notes.length ? `<div class="notes">${L.notes.map(esc).join(' · ')}</div>` : '';
+    const notes = L.notes.length ? `<span class="notes">${L.notes.map(esc).join(' · ')}</span>` : '';
     const label = d.ended === 'win' ? '🎉 Objectif atteint ! Remonter' : d.ended === 'lose' ? 'Fin de la plongée' : 'Marée suivante →';
     bar = `<div class="msg">Marée ${L.tide} : <b class="tide-total" data-count="${L.total}">+${fmt(L.total)}</b>${L.factors.length ? ` <span class="badge">${L.factors.join(' · ')}</span>` : ''}${notes}</div>
       <button class="btn primary big" data-action="next">${label}</button>`;
@@ -307,10 +314,10 @@ function renderDive() {
   const peek = E.has(r, 'lampe') && d.draw.length
     ? `<div class="peek">🔦 Prochaines : ${d.draw.slice(0, 3).map((id) => `<span title="${esc(CREATURES[E.inst(r, id).t].name)}">${CREATURES[E.inst(r, id).t].emoji}</span>`).join(' ')}</div>` : '';
   const handSec = `<section class="hand"><div class="zone-label">Main <span class="muted">${d.hand.length} · pioche jusqu’à ${d.handSize} à chaque marée</span>${peek}</div>
-    <div class="hand-row">${hand || '<div class="empty-note">Main vide.</div>'}</div></section>`;
+    <div class="hand-row" style="--n:${d.hand.length}">${hand || '<div class="empty-note">Main vide.</div>'}</div></section>`;
 
   const zoneBg = ZONES[r.zone].bg;
-  app.innerHTML = `<div class="screen dive-screen" style="--z1:${zoneBg[0]};--z2:${zoneBg[1]}">${topbar()}${toast()}${hud}${reef}<section class="actionbar">${bar}</section>${handSec}</div>`;
+  app.innerHTML = `<div class="screen dive-screen" style="--z1:${zoneBg[0]};--z2:${zoneBg[1]}">${topbar()}${hud}${reef}<section class="actionbar">${bar}</section>${handSec}</div>`;
 }
 
 // ── Récompense ──────────────────────────────────────────────
@@ -342,20 +349,21 @@ function renderShop() {
   const buy = (kind, i, p) => `<button class="btn ${r.pearls >= p ? 'primary' : ''}" data-action="buy" data-kind="${kind}" data-i="${i}" ${r.pearls >= p ? '' : 'disabled'}>🦪 ${p}</button>`;
   const sold = '<div class="sold">Vendu</div>';
   const cr = s.cr.map((x, i) => (x ? `<div class="offer-item">${creatureCard({ t: x.t })}${buy('cr', i, x.price)}</div>` : sold)).join('');
-  const ar = s.ar.map((x, i) => (x ? artifactCard(x.a, buy('ar', i, x.price)) : sold)).join('');
+  const ar = s.ar.map((x, i) => (x ? artifactCard(x.a, buy('ar', i, x.price)) : '<div class="sold short">Vendu</div>')).join('');
   const co = s.co.map((x, i) => (x ? `<div class="offer-item">${coralCard(x.t)}${buy('co', i, x.price)}</div>` : sold)).join('');
   app.innerHTML = `<div class="screen">${topbar()}${toast()}<div class="between">
     <h2>⚓ Le Comptoir</h2>
-    <h3>Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · 🦪 ${s.reroll}</button></h3>
-    <div class="offer">${cr}</div>
+    <div class="shop-top">
+      <div><h3>Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · 🦪 ${s.reroll}</button></h3>
+        <div class="offer">${cr}</div></div>
+      ${s.co.length ? `<div><h3>Bouture de corail</h3><div class="offer">${co}</div></div>` : ''}
+    </div>
     <h3>Artefacts</h3><div class="offer">${ar || '<div class="muted">Plus rien à vendre.</div>'}</div>
-    ${s.co.length ? `<h3>Bouture de corail</h3><div class="offer">${co}</div>` : ''}
-    <h3>Services</h3>
-    <div class="row">
+    <div class="shop-foot">
       <button class="btn" data-action="shopremove" ${r.pearls >= r.removeCost && r.bag.length > 6 ? '' : 'disabled'}>Relâcher une créature · 🦪 ${r.removeCost}</button>
       <button class="btn" data-action="shopheal" ${r.pearls >= E.healCost(r) && r.oxygen < r.oxygenMax ? '' : 'disabled'}>+1 🫧 · 🦪 ${E.healCost(r)}</button>
+      <button class="btn primary big" data-action="leave">Reprendre la route →</button>
     </div>
-    <button class="btn primary big" data-action="leave">Reprendre la route →</button>
   </div></div>`;
 }
 
@@ -424,7 +432,16 @@ const RULES = `
   <li><b>Couronnes</b> : 💠 Couronne complète (+1 Mult) · 🎯 Banc, une seule famille (Mult ×2) · 🌈 Mosaïque, que des familles différentes (Mult ×1,5).</li></ul>
   <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien y met fin aussitôt.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
-  Vaincre l’expédition débloque une <b>Profondeur</b> plus difficile.</p>`;
+  Vaincre l’expédition débloque une <b>Profondeur</b> plus difficile.</p>
+  <h4>Astuce</h4><p>Survolez une créature ou un corail du récif, ou une carte du banc, pour la lire en grand.</p>`;
+
+// Grille calculée pour que toutes les cartes tiennent dans la fenêtre.
+function collGrid(n, reserved) {
+  const w = Math.min(1276, innerWidth - 76);
+  const h = Math.max(120, innerHeight - reserved);
+  const cols = Math.max(1, Math.ceil(Math.sqrt((n * w) / (h * 1.1))));
+  return `--cols:${cols};--rows:${Math.ceil(n / cols)}`;
+}
 
 function modalHTML() {
   const r = S.run;
@@ -433,54 +450,176 @@ function modalHTML() {
     const titles = { remove: 'Relâcher une créature', sell: 'Céder une créature aux pêcheurs', upgrade: 'Faire grandir une créature ★', duplicate: 'Dupliquer une créature', fortify: 'Fortifier un corail' };
     let items;
     if (p.purpose === 'fortify') {
-      items = r.corals.map((c) => coralCard(c.t, { action: 'pick', id: c.id, lvl: c.lvl, pick: true })).join('');
+      items = r.corals.map((c) => coralCard(c.t, { action: 'pick', id: c.id, lvl: c.lvl, pick: true, mini: true })).join('');
     } else {
       items = [...r.bag].sort((a, b) => a.t.localeCompare(b.t)).map((c) => {
         const ex = p.purpose === 'upgrade' ? `<div class="up">+${E.upgradeAmount(r, c)}</div>` : '';
-        return `<div class="offer-item">${creatureCard(c, { action: 'pick', pick: true, small: true })}${ex}</div>`;
+        return `<div class="offer-item">${creatureCard(c, { action: 'pick', pick: true, mini: true })}${ex}</div>`;
       }).join('');
     }
     return `<div class="modal-bg"><div class="modal wide">
       <h2>${titles[p.purpose]}${p.cost ? ` · 🦪 ${p.cost}` : ''}</h2>
-      <div class="coll">${items}</div>
+      <div class="coll" style="${collGrid(p.purpose === 'fortify' ? r.corals.length : r.bag.length, 130)}">${items}</div>
       ${p.cancel ? '<button class="btn" data-action="pickcancel">Annuler</button>' : ''}</div></div>`;
   }
   if (!S.modal) return '';
   if (S.modal === 'rules') {
     return `<div class="modal-bg" data-action="closemodal"><div class="modal rules" data-stop>
-      <h2>Règles de Krazy Sea</h2>${RULES}
+      <h2>Règles de Krazy Sea</h2><div class="cols">${RULES}</div>
       <button class="btn primary" data-action="closemodal">Compris !</button></div></div>`;
   }
   if (S.modal === 'bag') {
     const d = r.dive;
     const where = (id) => (!d ? '' : d.hand.includes(id) ? 'en main' : d.draw.includes(id) ? 'pioche' : d.discard.includes(id) ? 'défausse' : 'récif');
-    const items = [...r.bag].sort((a, b) => a.t.localeCompare(b.t)).map((c) => `<div class="offer-item">${creatureCard(c, { small: true })}${d ? `<div class="muted">${where(c.id)}</div>` : ''}</div>`).join('');
+    const items = [...r.bag].sort((a, b) => a.t.localeCompare(b.t)).map((c) => `<div class="offer-item">${creatureCard(c, { mini: true })}${d ? `<div class="muted">${where(c.id)}</div>` : ''}</div>`).join('');
     return `<div class="modal-bg" data-action="closemodal"><div class="modal wide" data-stop>
       <h2>Votre banc · ${r.bag.length} créatures</h2>
-      <div class="coll">${items}</div>
-      <h3>Coraux</h3><div class="coll">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl })).join('')}</div>
-      ${r.artifacts.length ? `<h3>Artefacts</h3><div class="coll">${r.artifacts.map((a) => artifactCard(a)).join('')}</div>` : ''}
+      <div class="coll" style="${collGrid(r.bag.length, 170 + Math.max(72, Math.min(100, innerHeight * 0.12)))}">${items}</div>
+      <div class="bag-foot">
+        <div><h3>Coraux</h3><div class="list">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
+        ${r.artifacts.length ? `<div><h3>Artefacts</h3><div class="list">${r.artifacts.map(artifactChip).join('')}</div></div>` : ''}
+      </div>
       <button class="btn" data-action="closemodal">Fermer</button></div></div>`;
   }
   if (S.modal === 'bestiary') {
-    const cr = Object.keys(CREATURES).map((t) => (meta.seenC.includes(t) ? creatureCard({ t }, { small: true }) : '<div class="card small unknown"><div class="c-em">❔</div><div class="c-nm">???</div></div>')).join('');
-    const co = Object.keys(CORALS).map((t) => (meta.seenK.includes(t) ? coralCard(t) : '<div class="card small unknown"><div class="c-em">❔</div><div class="c-nm">???</div></div>')).join('');
+    const unknown = '<div class="card mini unknown"><div class="c-em">❔</div><div class="c-nm">???</div></div>';
+    const cr = Object.keys(CREATURES).map((t) => (meta.seenC.includes(t) ? creatureCard({ t }, { mini: true }) : unknown));
+    const co = Object.keys(CORALS).map((t) => (meta.seenK.includes(t) ? coralCard(t, { mini: true }) : unknown));
     return `<div class="modal-bg" data-action="closemodal"><div class="modal wide" data-stop>
-      <h2>Bestiaire · ${meta.seenC.length}/${Object.keys(CREATURES).length}</h2>
-      <p class="muted">Les créatures et coraux que vous avez accueillis dans votre récif.</p>
-      <div class="coll">${cr}</div><h3>Coraux · ${meta.seenK.length}/${Object.keys(CORALS).length}</h3><div class="coll">${co}</div>
+      <h2>Bestiaire · ${meta.seenC.length}/${cr.length} créatures · ${meta.seenK.length}/${co.length} coraux</h2>
+      <div class="coll" style="${collGrid(cr.length + co.length, 130)}">${cr.join('')}${co.join('')}</div>
       <button class="btn" data-action="closemodal">Fermer</button></div></div>`;
   }
   return '';
 }
 
+// ── Tutoriel ────────────────────────────────────────────────
+// Expédition d'essai avec une main préparée. Les étapes `done` attendent une
+// action du joueur ; les autres se lisent et bloquent le reste de l'écran.
+const dive = () => S.run.dive;
+const TUTO = [
+  { target: () => '.hud', title: 'Le but',
+    text: () => `Chaque plongée a un <b>objectif de points</b> à atteindre en 4 <b>marées</b> 🌊. La partie hachurée de la barre montre ce que rapportera la marée en préparation.` },
+  { target: () => '.hand', title: 'Vos créatures',
+    text: () => `À chaque marée, vous piochez des créatures dans votre banc. Chaque carte indique sa <b>famille</b>, son <b>Éclat</b> (la pastille sombre) et son effet.` },
+  { title: 'Posez une créature',
+    target: () => (S.ui.sel ? '.reef' : '.hand [data-t="sardine"]'),
+    text: () => (S.ui.sel
+      ? `Cliquez sur un emplacement <span class="glow">en surbrillance</span>, par exemple la <b>Surface ⬆</b> du premier corail.`
+      : `Cliquez sur les <b>Sardines</b> : vous les poserez ensuite autour d'un corail.`),
+    done: () => E.boardCount(S.run) >= 1 },
+  { title: 'Soignez les voisinages',
+    target: () => (S.ui.sel ? '.reef' : '.hand [data-t="crevette"]'),
+    text: () => (S.ui.sel
+      ? `Posez-la sur un <b>Flanc ⬅ ➡</b> du même corail : Surface et Flancs se touchent. Une erreur ? Recliquez sur une créature posée pour la reprendre.`
+      : `Une créature peut renforcer celles qui la touchent. Cliquez sur la <b>Crevette nettoyeuse</b>, qui donne +3 Éclat à ses voisins.`),
+    done: () => E.boardCount(S.run) >= 2 },
+  { target: () => '.formula', title: 'Éclat × Mult',
+    text: () => `Chaque corail marque son <span style="color:var(--accent2)"><b>Éclat</b></span> (la somme des créatures posées) multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Certaines créatures, comme la Méduse, augmentent le Mult : c'est là que naissent les gros scores.` },
+  { target: () => '.reef', title: 'Les couronnes',
+    text: () => `Occupez les 4 emplacements d'un corail pour former une <b>couronne</b> : 💠 +1 Mult. Si les créatures sont d'une seule famille, 🎯 Mult ×2 ; si elles sont toutes différentes, 🌈 Mult ×1,5.` },
+  { title: 'Lancez la marée', target: () => '[data-action="launch"]',
+    text: () => `Cliquez sur <b>Lancer la marée</b> pour marquer vos points. Pour la suite : 🌀 <b>Remous</b> échange des créatures de votre main contre de nouvelles.`,
+    done: () => dive().phase === 'scored' },
+  { target: () => '.actionbar', title: 'Après la marée',
+    text: () => `Les points s'ajoutent à votre score. Les créatures posées repartent dans la défausse, sauf les <b>Sédentaires</b>, et celles restées en main sont conservées.`,
+    next: () => E.backToMap(S.run) },
+  { target: () => '.map-col', title: 'La carte',
+    text: () => `Entre deux plongées, choisissez votre route : 🐟 plongées, 💀 plongées périlleuses, ❓ épaves, ⚓ comptoir pour acheter, 🌱 nurserie pour renforcer votre récif.` },
+  { target: () => '.boss-card', title: 'Le gardien',
+    text: () => `Chaque zone se termine par un <b>gardien</b> annoncé à l'avance : préparez votre récif en conséquence. Le rater met fin à l'expédition.` },
+  { title: 'Prêt à plonger ?', final: true,
+    text: () => `Une plongée ratée coûte 1 🫧 <b>Oxygène</b> ; à zéro, l'expédition s'arrête. Les perles 🦪 gagnées servent au comptoir. Traversez les trois zones et vainquez leurs gardiens !` },
+];
+
+function startTuto() {
+  S.run = E.tutorialRun();
+  resetUI();
+  S.screen = 'game';
+  S.modal = null;
+  S.tuto = { i: 0 };
+  meta.tuto = true; saveMeta();
+}
+function endTuto() { S.tuto = null; S.run = null; resetUI(); S.screen = 'title'; }
+
+function renderTuto() {
+  while (TUTO[S.tuto.i].done && TUTO[S.tuto.i].done()) S.tuto.i++;
+  const step = TUTO[S.tuto.i];
+  const live = !!step.done;
+  const buttons = step.final
+    ? `<button class="btn" data-action="tutoend">Retour au menu</button>${hasSave() ? '' : '<button class="btn primary" data-action="tutoplay">Commencer une expédition</button>'}`
+    : `<button class="btn ghost" data-action="tutoend">Quitter</button>${live ? '<span class="tuto-turn">À vous de jouer !</span>' : '<button class="btn primary" data-action="tutonext">Suivant</button>'}`;
+  app.insertAdjacentHTML('beforeend', `
+    ${live ? '' : `<div class="tuto-block ${step.final ? 'dim' : ''}"></div>`}
+    <div class="tuto-spot ${live ? '' : 'shade'}" hidden></div>
+    <div class="tuto-bubble"><h4>${step.title}<span>${S.tuto.i + 1}/${TUTO.length}</span></h4>
+      <div>${step.text()}</div><div class="tuto-actions">${buttons}</div></div>`);
+  placeTuto(step);
+}
+
+function placeTuto(step) {
+  const bubble = app.querySelector('.tuto-bubble');
+  const spot = app.querySelector('.tuto-spot');
+  const clamp = (v, max) => Math.max(8, Math.min(v, max));
+  const w = bubble.offsetWidth; const h = bubble.offsetHeight;
+  const sel = step.target && step.target();
+  // La carte visée n'est peut-être pas en main : on retombe alors sur la main.
+  const el = sel && (app.querySelector(sel) || app.querySelector('.hand'));
+  let left = (innerWidth - w) / 2; let top = (innerHeight - h) / 2;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    spot.hidden = false;
+    Object.assign(spot.style, { left: `${r.left - 4}px`, top: `${r.top - 4}px`, width: `${r.width + 8}px`, height: `${r.height + 8}px` });
+    if (r.width + w + 24 < innerWidth && r.height > innerHeight * 0.6) { // grande cible : à côté
+      left = r.right + 12 + w < innerWidth ? r.right + 12 : r.left - w - 12;
+      top = r.top + (r.height - h) / 2;
+    } else {
+      left = r.left + r.width / 2 - w / 2;
+      top = innerHeight - r.bottom >= r.top ? r.bottom + 12 : r.top - h - 12;
+    }
+  }
+  bubble.style.left = `${clamp(left, innerWidth - w - 8)}px`;
+  bubble.style.top = `${clamp(top, innerHeight - h - 8)}px`;
+}
+
+// ── Aperçu agrandi au survol ────────────────────────────────
+const zoomEl = document.createElement('div');
+zoomEl.id = 'zoom';
+zoomEl.hidden = true;
+document.body.append(zoomEl);
+let zoomFor = null;
+function hideZoom() { zoomEl.hidden = true; zoomFor = null; }
+function showZoom(el) {
+  zoomFor = el;
+  zoomEl.innerHTML = el.querySelector(':scope > template').innerHTML;
+  zoomEl.hidden = false;
+  const r = el.getBoundingClientRect();
+  const w = zoomEl.offsetWidth; const h = zoomEl.offsetHeight;
+  let top = r.bottom + 8;
+  if (top + h > innerHeight - 8) top = r.top - h - 8;
+  let left = r.left + r.width / 2 - w / 2;
+  if (top < 8) { // ni dessous ni dessus : à côté
+    top = Math.max(8, Math.min(r.top, innerHeight - h - 8));
+    left = r.right + 8 + w < innerWidth ? r.right + 8 : r.left - w - 8;
+  }
+  zoomEl.style.left = `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`;
+  zoomEl.style.top = `${top}px`;
+}
+document.addEventListener('mouseover', (ev) => {
+  const el = ev.target.closest('[data-zoom]');
+  if (!el) hideZoom();
+  else if (el !== zoomFor) showZoom(el);
+});
+
 // ── Rendu ───────────────────────────────────────────────────
 function render() {
+  hideZoom();
   const r = S.run;
   if (S.screen === 'title' || !r) renderTitle();
   else ({ map: renderMap, dive: renderDive, reward: renderReward, shop: renderShop, event: renderEvent, rest: renderRest, end: renderEnd })[r.phase]();
   const m = modalHTML();
   if (m) app.insertAdjacentHTML('beforeend', m);
+  else if (S.tuto) renderTuto();
   if (S.anim) { S.anim = false; animateCounts(); }
   trackSeen();
   save();
@@ -520,7 +659,7 @@ function onRunEnd() {
 let lastBosses = 0;
 function afterAction() {
   const r = S.run;
-  if (!r) return;
+  if (!r || S.tuto) return;
   if (r.bosses > lastBosses) { meta.bosses += r.bosses - lastBosses; lastBosses = r.bosses; saveMeta(); }
   meta.bestZone = Math.max(meta.bestZone, r.zone);
   if (r.phase === 'end' && !r.endTracked) { r.endTracked = true; onRunEnd(); }
@@ -550,7 +689,11 @@ const handlers = {
   bestiary: () => { S.modal = 'bestiary'; },
   bag: () => { S.modal = 'bag'; },
   closemodal: () => { S.modal = null; },
-  menu: () => { S.screen = 'title'; S.modal = null; },
+  menu: () => { S.modal = null; if (S.tuto) endTuto(); else S.screen = 'title'; },
+  tuto: () => startTuto(),
+  tutonext: () => { const st = TUTO[S.tuto.i]; S.tuto.i++; if (st.next) st.next(); },
+  tutoend: () => endTuto(),
+  tutoplay: () => { endTuto(); startRun({ diverId: S.diver, depth: S.depth }); },
   totitle: () => { S.screen = 'title'; S.run = null; },
 
   node: (el) => { E.enterNode(S.run, +el.dataset.row, +el.dataset.lane); resetUI(); },
@@ -608,5 +751,7 @@ document.addEventListener('keydown', (ev) => {
   else if (S.run && S.run.phase === 'dive') resetUI();
   render();
 });
+
+window.addEventListener('resize', render);
 
 render();
