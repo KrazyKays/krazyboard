@@ -36,6 +36,23 @@ Toute la profondeur tactique vient des **associations** :
 Une plongée = atteindre un **objectif** en 4 marées, avec quelques **Remous** 🌀 (défausser pour repiocher).
 Les créatures non posées restent en main, et les **Sédentaires** restent sur le récif d'une marée à l'autre.
 
+Chaque bonus actif s'affiche près de son corail avec sa valeur (`💠 Couronne complète +1M`, `🎯 Banc ×2M`…) ;
+une pastille pâle signale qu'il ne manque plus qu'une créature pour compléter la couronne.
+
+## Construire son banc
+
+Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes** sont tirés au hasard, puis vous faites
+**3 choix de 1 créature parmi 3** pour donner une direction à votre récif. Chaque offre indique ce qu'elle apporte.
+
+- **Écosystèmes** 🌿 : le nombre de créatures d'une même famille dans le banc débloque un bonus à deux paliers.
+- **Mutations** 🧬 : un modificateur posé sur une créature précise (Écho, Fidèle, Caméléon, Géante…). Nurserie, comptoir,
+  épaves et gardiens en proposent, et certaines récompenses sont déjà mutées.
+- **Fusion** ★ : deux créatures identiques n'en font plus qu'une (Éclat additionné, +1 Mult permanent).
+- **Offres orientées** : les récompenses et le comptoir penchent vers votre récif et votre banc, la dernière offre restant libre pour bifurquer.
+- **Mots-clés** : **Éphémère** (une fois par plongée), **Fidèle** (revient en main), **Éclosion** (devient une autre créature pour toujours).
+- **Banc épais ou banc affûté** : le Krill et les Anchois aiment les grands bancs ou les copies, l'Hippocampe veut un banc fin, la Murène se nourrit de la défausse.
+- **Parasites** ☣️ : le prix de certaines épaves. Ils encombrent le banc jusqu'à ce que vous les relâchiez ou qu'un Orque ou un Labre s'en charge.
+
 ## Le côté roguelike
 
 - **Carte à embranchements** pour chacune des 3 zones (Lagon → Tombant → Abysses) : 🐟 plongées, 💀 plongées
@@ -47,7 +64,7 @@ Les créatures non posées restent en main, et les **Sédentaires** restent sur 
 - **Changements permanents** : créatures qui grandissent (Poisson-lune, Bernard-l'ermite), prédateurs qui dévorent
   leurs voisins pour toujours (Orque), améliorations ★ à la nurserie, coraux fortifiés, banc à affiner au comptoir.
 - **19 artefacts** qui changent les règles (Boussole, Écaille de sirène, Sablier, Bourse de nacre…).
-- **Méta-progression** : 4 plongeurs avec leur banc de départ, 5 niveaux de **Profondeur** (difficulté),
+- **Méta-progression** : 4 plongeurs (un artefact et un penchant qui oriente les tirages), 5 niveaux de **Profondeur** (difficulté),
   un **bestiaire** à compléter et une **plongée du jour** (même graine pour tout le monde).
 - Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage).
 
@@ -56,7 +73,7 @@ Les créatures non posées restent en main, et les **Sédentaires** restent sur 
 ```
 index.html        page unique
 style.css         styles
-js/data.js        créatures, coraux, artefacts, conditions, plongeurs, objectifs (tout l'équilibrage)
+js/data.js        créatures, coraux, mutations, écosystèmes, artefacts, conditions, plongeurs, objectifs (tout l'équilibrage)
 js/engine.js      règles du jeu, carte, plongées, score, boutique, événements (sans affichage)
 js/ui.js          rendu et interactions
 ```

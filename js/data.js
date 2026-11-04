@@ -22,12 +22,14 @@ export const FAMILIES = {
   echino:    { name: 'Échinoderme', icon: '⭐', color: '#ffb703' },
   reptile:   { name: 'Reptile',     icon: '🐢', color: '#90be6d' },
   oiseau:    { name: 'Oiseau',      icon: '🐧', color: '#e9ecef' },
+  nuisible:  { name: 'Nuisible',    icon: '☣️', color: '#7a7f6a' },
 };
 
 export const RARITY = {
   c: { name: 'Commune', price: 4 },
   u: { name: 'Peu commune', price: 6 },
   r: { name: 'Rare', price: 9 },
+  x: { name: 'Parasite', price: 0 }, // jamais proposé en récompense
 };
 
 // ── Créatures ────────────────────────────────────────────────
@@ -41,6 +43,11 @@ export const RARITY = {
 //   sed          → Sédentaire : reste en place toute la plongée
 //   copy         → copie l'Éclat de la créature opposée
 //   allFam       → compte comme toutes les familles
+//   ephem        → Éphémère : une fois jouée, sortie de la plongée en cours
+//   loyal        → Fidèle : revient en main après la marée
+//   evolve       → Éclosion : { into, after } devient définitivement `into` après `after` marées jouées
+//   parasite     → encombre le banc, n'est jamais proposé en récompense
+//   needsParasite → proposé seulement si le banc contient un Parasite
 const fam = (x, f) => x.allFam || x.def.fam === f;
 const nbFam = (x, f) => x.nbs.filter((n) => fam(n, f)).length;
 
@@ -149,18 +156,118 @@ export const CREATURES = {
     mult: (x, B) => B.countFam('echino') },
   manchot: { name: 'Manchot', emoji: '🐧', fam: 'oiseau', pts: 1, rar: 'u',
     text: 'Pose : piochez 2 créatures.', place: { draw: 2 } },
+
+  // ── Taille du banc : banc épais ou banc affûté ──
+  anchois: { name: 'Anchois', emoji: '🥫', fam: 'poisson', pts: 2, rar: 'c',
+    text: '+2 Éclat par Anchois dans votre banc.',
+    eclat: (x, B) => 2 * B.bagT('anchois') },
+  krill: { name: 'Krill', emoji: '🍤', fam: 'crustace', pts: 1, rar: 'c',
+    text: '+1 Éclat par tranche de 4 créatures dans votre banc.',
+    eclat: (x, B) => Math.floor(B.bagCount / 4) },
+  hippocampe: { name: 'Hippocampe', emoji: '🐴', fam: 'poisson', pts: 2, rar: 'u',
+    text: '+1 Mult par créature de moins que 15 dans votre banc (max +6).',
+    mult: (x, B) => Math.max(0, Math.min(6, 15 - B.bagCount)) },
+  siphonophore: { name: 'Siphonophore', emoji: '🧵', fam: 'cnidaire', pts: 1, rar: 'u',
+    text: '+1 Mult par Cnidaire dans votre banc.',
+    mult: (x, B) => B.bagFam('cnidaire') },
+  ophiure: { name: 'Ophiure', emoji: '🦴', fam: 'echino', pts: 2, rar: 'c',
+    text: '+2 Éclat par Échinoderme dans votre banc.',
+    eclat: (x, B) => 2 * B.bagFam('echino') },
+
+  // ── Cycle du banc : pioche, défausse, retour en main ──
+  remora: { name: 'Rémora', emoji: '🧲', fam: 'poisson', pts: 3, rar: 'c', loyal: true,
+    text: 'Fidèle : revient en main après la marée.' },
+  pilote: { name: 'Poisson-pilote', emoji: '🚩', fam: 'poisson', pts: 2, rar: 'u',
+    text: 'Pose : piochez la créature la plus forte de votre pioche.', place: { tutor: 1 } },
+  murene: { name: 'Murène', emoji: '🪱', fam: 'poisson', pts: 2, rar: 'u',
+    text: '+1 Éclat par créature dans la défausse.',
+    eclat: (x, B) => B.discardN },
+  seiche: { name: 'Seiche', emoji: '🌫️', fam: 'mollusque', pts: 2, rar: 'u',
+    text: 'Pose : défaussez votre main et piochez-en une de plus.', place: { cycle: true } },
+
+  // ── Éphémères : énormes, mais une seule fois par plongée ──
+  plancton: { name: 'Plancton luisant', emoji: '✨', fam: 'cnidaire', pts: 0, rar: 'c', ephem: true,
+    text: '+6 Mult. Éphémère : une seule fois par plongée.', mult: () => 6 },
+  squille: { name: 'Squille', emoji: '🥊', fam: 'crustace', pts: 22, rar: 'u', ephem: true,
+    text: 'Un coup de poing fulgurant. Éphémère : une seule fois par plongée.' },
+
+  // ── Investissements : grandissent ou éclosent ──
+  nautile: { name: 'Nautile', emoji: '🍥', fam: 'mollusque', pts: 1, rar: 'u',
+    text: 'Grandit : +1 Mult permanent, une fois par plongée où il joue.',
+    after: (x, B) => { if (x.inst.grew !== B.run.dives) { x.inst.grew = B.run.dives; x.inst.mbonus += 1; } } },
+  concombre: { name: 'Concombre de mer', emoji: '🥒', fam: 'echino', pts: 1, rar: 'c', sed: true,
+    text: 'Sédentaire. Grandit : +1 Éclat permanent après chaque marée.',
+    after: (x) => { x.inst.bonus += 1; } },
+  polype: { name: 'Polype', emoji: '🌱', fam: 'cnidaire', pts: 1, rar: 'c',
+    text: '+1 Mult par Cnidaire posé dans le récif.',
+    mult: (x, B) => B.countFam('cnidaire') },
+  oeuf: { name: 'Œuf de requin', emoji: '🥚', fam: 'poisson', pts: 1, rar: 'c', evolve: { into: 'requin', after: 2 },
+    text: 'Éclosion : devient un Requin après 2 marées jouées.' },
+  larve: { name: 'Larve de langouste', emoji: '🧫', fam: 'crustace', pts: 1, rar: 'c', evolve: { into: 'langouste', after: 3 },
+    text: 'Éclosion : devient une Langouste royale après 3 marées jouées.' },
+  ephyrule: { name: 'Éphyrule', emoji: '🫐', fam: 'cnidaire', pts: 0, rar: 'c', evolve: { into: 'pyrosome', after: 3 },
+    text: 'Éclosion : devient un Pyrosome après 3 marées jouées.' },
+  labre: { name: 'Labre nettoyeur', emoji: '🧼', fam: 'poisson', pts: 2, rar: 'u', needsParasite: true,
+    text: 'Après la marée : retire pour toujours un Parasite voisin, et +5 perles.',
+    after: (x, B, out) => {
+      const p = x.nbs.find((n) => n.def.parasite && !out.devoured.has(n.id));
+      if (p) { out.devoured.add(p.id); out.pearls += 5; out.notes.push(`🧼 Le Labre nettoie : ${p.def.name} disparaît !`); }
+    } },
+
+  // ── Parasites : le prix de certaines épaves ──
+  plastique: { name: 'Sac plastique', emoji: '🛍️', fam: 'nuisible', pts: 0, rar: 'x', parasite: true,
+    text: 'Parasite : −2 Mult sur le corail où il est posé.', mult: () => -2 },
+  filet_fantome: { name: 'Filet fantôme', emoji: '🕸️', fam: 'nuisible', pts: 0, rar: 'x', parasite: true, sed: true,
+    text: 'Parasite. Sédentaire : −3 Éclat à ses voisins.',
+    pre: (x) => { for (const n of x.nbs) n.aura -= 3; } },
+};
+
+// ── Mutations : un modificateur posé sur UNE créature de votre banc ──
+export const MUTATIONS = {
+  nacre:      { name: 'Nacrée', emoji: '🦪', text: '+1 perle à chaque marée où elle joue.' },
+  fluo:       { name: 'Fluorescente', emoji: '🔆', text: '+2 Mult.' },
+  echo:       { name: 'Écho', emoji: '🔁', text: 'Marque deux fois son Éclat.' },
+  fidele:     { name: 'Fidèle', emoji: '🧲', text: 'Revient en main après la marée.' },
+  veloce:     { name: 'Véloce', emoji: '💨', text: 'Pose : piochez 1 créature.' },
+  polyvalent: { name: 'Caméléon', emoji: '🦎', text: 'Compte comme toutes les familles.' },
+  geant:      { name: 'Géante', emoji: '💪', text: '+6 Éclat.' },
+};
+
+// ── Écosystèmes : le nombre de créatures d'une famille DANS VOTRE BANC
+// débloque un bonus (chaque palier remplace le précédent).
+export const ECOSYSTEMS = {
+  poisson:   { name: 'Grand banc', tiers: [
+    { n: 4, eclat: 2, text: 'Poissons : +2 Éclat.' },
+    { n: 7, eclat: 5, text: 'Poissons : +5 Éclat.' }] },
+  crustace:  { name: 'Carapaces', tiers: [
+    { n: 4, eclat: 2, text: 'Crustacés : +2 Éclat.' },
+    { n: 7, eclat: 2, mult: 1, text: 'Crustacés : +2 Éclat et +1 Mult.' }] },
+  mollusque: { name: 'Nuage d’encre', tiers: [
+    { n: 3, remous: 1, text: '+1 Remous à chaque plongée.' },
+    { n: 5, remous: 1, hand: 1, text: '+1 Remous et +1 créature en main.' }] },
+  cnidaire:  { name: 'Essaim', tiers: [
+    { n: 3, mult: 1, text: 'Cnidaires : +1 Mult.' },
+    { n: 5, mult: 2, text: 'Cnidaires : +2 Mult.' }] },
+  mammifere: { name: 'Troupeau', tiers: [
+    { n: 3, eclat: 3, text: 'Mammifères : +3 Éclat.' },
+    { n: 5, eclat: 8, text: 'Mammifères : +8 Éclat.' }] },
+  echino:    { name: 'Colonie', tiers: [
+    { n: 3, eclat: 3, text: 'Échinodermes : +3 Éclat.' },
+    { n: 5, eclat: 3, mult: 2, text: 'Échinodermes : +3 Éclat et +2 Mult.' }] },
 };
 
 // ── Coraux (le centre de chaque couronne) ───────────────────
 // mult : Mult de base. bonus(c, xs) → { mult, eclat(x) } selon les créatures posées.
+// likes : ce que ce corail met en valeur (famille, 'sed' ou 'pose') ; sert à orienter
+// le tirage du banc de départ et les offres.
 export const CORALS = {
-  cerveau: { name: 'Corail cerveau', emoji: '🧠', color: '#c77dff', mult: 2, rar: 'c',
+  cerveau: { name: 'Corail cerveau', emoji: '🧠', color: '#c77dff', mult: 2, rar: 'c', likes: ['mollusque'],
     text: '+1 Mult par Mollusque posé dessus.',
     multB: (xs) => xs.filter((x) => x.allFam || x.def.fam === 'mollusque').length },
-  anemone: { name: 'Anémone', emoji: '🌺', color: '#f8961e', mult: 1, rar: 'c',
+  anemone: { name: 'Anémone', emoji: '🌺', color: '#f8961e', mult: 1, rar: 'c', likes: ['poisson'],
     text: 'Les Poissons posés dessus ont +3 Éclat.',
     eclatB: (x) => (x.allFam || x.def.fam === 'poisson' ? 3 : 0) },
-  corne: { name: 'Corne-de-cerf', emoji: '🦌', color: '#f9c74f', mult: 2, rar: 'c',
+  corne: { name: 'Corne-de-cerf', emoji: '🦌', color: '#f9c74f', mult: 2, rar: 'c', likes: ['crustace'],
     text: 'Les Crustacés posés dessus ont +4 Éclat.',
     eclatB: (x) => (x.allFam || x.def.fam === 'crustace' ? 4 : 0) },
   gorgone: { name: 'Gorgone', emoji: '🪭', color: '#f15b5b', mult: 1, rar: 'c',
@@ -171,7 +278,7 @@ export const CORALS = {
   eponge: { name: 'Éponge', emoji: '🧽', color: '#90be6d', mult: 1, rar: 'c',
     text: '+1 Mult par famille différente posée dessus.',
     multB: (xs) => (xs.some((x) => x.allFam) ? 8 : new Set(xs.map((x) => x.def.fam)).size) },
-  herbier: { name: 'Herbier', emoji: '🌿', color: '#52b788', mult: 2, rar: 'u',
+  herbier: { name: 'Herbier', emoji: '🌿', color: '#52b788', mult: 2, rar: 'u', likes: ['sed'],
     text: 'Les Sédentaires posés dessus ont +4 Éclat.',
     eclatB: (x) => (x.def.sed ? 4 : 0) },
   bulle: { name: 'Corail bulle', emoji: '🫧', color: '#a2d2ff', mult: 2, rar: 'u',
@@ -181,7 +288,7 @@ export const CORALS = {
     xmultB: (full) => (full ? 2 : 1) },
   noir: { name: 'Corail noir', emoji: '🖤', color: '#6c6c80', mult: 5, rar: 'r', blocked: ['N'],
     text: 'Mult 5, mais seulement 3 emplacements (pas de Surface).' },
-  lumineux: { name: 'Corail lumineux', emoji: '💡', color: '#ffe66d', mult: 2, rar: 'r',
+  lumineux: { name: 'Corail lumineux', emoji: '💡', color: '#ffe66d', mult: 2, rar: 'r', likes: ['pose'],
     text: 'Les effets de Pose des créatures posées dessus se déclenchent deux fois.' },
 };
 
@@ -244,29 +351,27 @@ export const NODE_TYPES = {
 };
 
 // ── Plongeurs (méta-progression) ────────────────────────────
+// Coraux et banc de départ sont tirés au hasard : le plongeur apporte un artefact,
+// des perles et un penchant (`lean`) qui oriente le tirage et les offres.
 export const DIVERS = {
   exploratrice: {
-    name: "L'Exploratrice", emoji: '🧭', text: 'Équilibrée. Corail cerveau + Gorgone, Masque de plongée.',
-    corals: ['cerveau', 'gorgone'], artifacts: ['masque'], pearls: 4,
-    bag: ['sardine', 'sardine', 'sardine', 'crabe', 'crevette', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'globe', 'loutre'],
+    name: "L'Exploratrice", emoji: '🧭', text: 'Sans penchant : tout est possible. Masque de plongée.',
+    artifacts: ['masque'], pearls: 4, lean: [],
     unlock: null,
   },
   biologiste: {
-    name: 'Le Biologiste', emoji: '🔬', text: 'Bancs de poissons. Anémone + Corail cerveau, Hameçon doré.',
-    corals: ['anemone', 'cerveau'], artifacts: ['hamecon'], pearls: 2,
-    bag: ['sardine', 'sardine', 'sardine', 'sardine', 'clown', 'clown', 'globe', 'globe', 'meduse', 'crevette', 'poulpe', 'phoque'],
+    name: 'Le Biologiste', emoji: '🔬', text: 'Penche vers les Poissons. Hameçon doré.',
+    artifacts: ['hamecon'], pearls: 2, lean: ['poisson'],
     unlock: { zone: 2, text: 'Atteindre le Tombant' },
   },
   chasseuse: {
-    name: "La Chasseuse d'épaves", emoji: '🏴‍☠️', text: 'Crustacés et perles. Corne-de-cerf + Éponge, Carte au trésor.',
-    corals: ['corne', 'eponge'], artifacts: ['tresor'], pearls: 10,
-    bag: ['crabe', 'crabe', 'crabe', 'crevette', 'crevette', 'huitre', 'huitre', 'etoile', 'meduse', 'loutre', 'sardine', 'tortue'],
+    name: "La Chasseuse d'épaves", emoji: '🏴‍☠️', text: 'Penche vers les Crustacés et Mollusques. Carte au trésor.',
+    artifacts: ['tresor'], pearls: 10, lean: ['crustace', 'mollusque'],
     unlock: { boss: 1, text: 'Vaincre un gardien' },
   },
   naturaliste: {
-    name: 'La Naturaliste', emoji: '🌿', text: 'Diversité et patience. Éponge + Herbier, Forêt d’algues.',
-    corals: ['eponge', 'herbier'], artifacts: ['algues'], pearls: 4,
-    bag: ['tortue', 'tortue', 'oursin', 'etoile', 'etoile', 'meduse', 'nudi', 'crabe', 'crabe', 'sardine', 'sardine', 'phoque'],
+    name: 'La Naturaliste', emoji: '🌿', text: 'Penche vers les Sédentaires et Échinodermes. Forêt d’algues.',
+    artifacts: ['algues'], pearls: 4, lean: ['sed', 'echino'],
     unlock: { zone: 3, text: 'Atteindre les Abysses' },
   },
 };
@@ -284,8 +389,12 @@ export const DEPTHS = [
 // Règles de base.
 export const BASE = {
   hand: 7, tides: 4, remous: 3, oxygen: 3, maxCorals: 5,
+  // Départ : `startCorals` coraux et `startBag` créatures communes au hasard,
+  // puis `draftRounds` choix de 1 créature parmi 3.
+  startCorals: 2, startBag: 9, draftRounds: 3,
   // Objectif d'une plongée : zoneTargets[zone] × rowGrowth^rangée
+  // (recalibré par simulation avec les écosystèmes, mutations et fusions)
   // (gros palier à chaque zone, car le gardien offre un nouveau corail).
-  zoneTargets: [400, 1200, 3600], rowGrowth: 1.13,
+  zoneTargets: [600, 1800, 5400], rowGrowth: 1.13,
   eliteX: 1.35, bossX: 1.35,
 };
