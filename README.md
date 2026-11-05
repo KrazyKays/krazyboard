@@ -61,7 +61,7 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
   épaves et gardiens en proposent, et certaines récompenses sont déjà mutées.
 - **Fusion** ★ : deux créatures identiques n'en font plus qu'une (Éclat additionné, +1 Mult permanent).
 - **Offres orientées** : les récompenses et le comptoir penchent vers votre récif et votre banc, la dernière offre restant libre pour bifurquer.
-- **Mots-clés** : **Éphémère** (une fois par plongée), **Fidèle** (revient en main), **Éclosion** (devient une autre créature pour toujours).
+- **Mots-clés** : **Éphémère** (une fois par plongée), **Fidèle** (revient en main), **Éclosion** (devient une autre créature pour toujours), **Chant** (effet qui profite à tous les coraux du récif).
 - **Banc épais ou banc affûté** : le Krill et les Anchois aiment les grands bancs ou les copies, l'Hippocampe veut un banc fin, la Murène se nourrit de la défausse.
 - **Parasites** ☣️ : le prix de certaines épaves. Ils encombrent le banc jusqu'à ce que vous les relâchiez ou qu'un Orque ou un Labre s'en charge.
 
@@ -73,6 +73,8 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
 - **Gardiens** 👑 annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
   son récif en conséquence. Le vaincre fait pousser un **nouveau corail**.
 - **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien y met fin aussitôt.
+- **Courant** 🌊 : difficulté adaptative. Gagner avec plus de 1,5× l'objectif augmente les objectifs suivants
+  (jusqu'à +60 %) ; une victoire de justesse (moins de 1,2×) ou un échec les fait redescendre. Réglages : `BASE.surge` dans `js/data.js`.
 - **Économie** : des perles pour chaque victoire, et un bonus pour chaque marée non utilisée.
 - **Changements permanents** : créatures qui grandissent (Poisson-lune, Bernard-l'ermite), prédateurs qui dévorent
   leurs voisins pour toujours (Orque), améliorations ★ à la nurserie, coraux fortifiés, banc à affiner au comptoir.

@@ -346,6 +346,8 @@ export const KEYWORDS = [
   { name: 'Couronne complète', match: '[Cc]ouronnes? complètes?|[Cc]ouronne est complète', text: 'Tous les emplacements d’un corail sont occupés, ce qui lui donne +1 Mult.' },
   { name: 'Harmonie', match: 'Harmonie', text: 'Couronne complète d’une seule famille : Mult ×2.' },
   { name: 'Mosaïque', match: 'Mosaïque', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
+  { name: 'Chant', match: 'Chant', text: 'Effet qui porte dans tout le récif : chaque corail en profite, même s’il n’est pas celui de la créature. Plusieurs Chants se cumulent (2 Baleines posées : +2 Mult à chaque corail).' },
+  { name: 'Courant', match: 'Courant(?! glacé)', text: 'Difficulté adaptative : quand vous dépassez largement un objectif, les objectifs suivants sont augmentés. Le Courant retombe dès qu’une plongée se joue de justesse ou échoue.' },
   { name: 'Remous', match: 'Remous', text: 'Défaussez des créatures de votre main pour en piocher autant. Vous avez un nombre limité de Remous par plongée.' },
   { name: 'Amélioration ★', match: 'améliorée ★|Amélioration ★|Améliorez une créature ★', text: '+50 % d’Éclat de base, définitivement.' },
   { name: 'Cnidaire', match: 'Cnidaires?', text: 'Famille 🪼 : Méduse, Physalie, Pyrosome, Polype, Siphonophore, Plancton, Éphyrule.' },
@@ -427,4 +429,9 @@ export const BASE = {
   // (gros palier à chaque zone, car le gardien offre un nouveau corail).
   zoneTargets: [600, 1800, 5400], rowGrowth: 1.13,
   eliteX: 1.35, bossX: 1.35,
+  // Courant 🌊 : difficulté adaptative. Après une victoire avec score / objectif = q :
+  //  - q > over  : surge += step × (min(q, cap) − over), plafonné à max ;
+  //  - q < tight : surge −= relax (jamais sous 1). Un échec retire aussi relax.
+  // Tous les objectifs suivants sont multipliés par surge.
+  surge: { over: 1.5, cap: 3, step: 0.2, max: 1.6, tight: 1.2, relax: 0.1 },
 };

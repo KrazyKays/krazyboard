@@ -143,12 +143,23 @@ const artifactChip = (a) => `<span class="chip" data-tip="${esc(`${ARTIFACTS[a].
 const condChip = (k) => `<span class="chip cond" data-tip="${esc(`${CONDITIONS[k].name} — ${CONDITIONS[k].text}`)}">${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</span>`;
 const oxygen = (r) => `<span class="o2" data-tip="Oxygène : vos points de vie. Une plongée ratée coûte 1 🫧.">${'🫧'.repeat(Math.max(0, r.oxygen))}<span class="o2-off">${'🫧'.repeat(Math.max(0, r.oxygenMax - r.oxygen))}</span></span>`;
 
+const surgePct = (x) => `${Math.round((x - 1) * 100)} %`;
+const surgeChip = (r) => ((r.surge || 1) > 1
+  ? ` <span class="chip" data-tip="${esc(`Courant : objectifs +${surgePct(r.surge)}, car vos derniers scores dépassaient largement les objectifs. Il retombe après une plongée jouée de justesse ou ratée.`)}">🌊 +${surgePct(r.surge)}</span>` : '');
+const surgeLine = (s) => {
+  if (!s || s.to === s.from) return '';
+  const q = s.q.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+  return s.to > s.from
+    ? `<br>🌊 Score ×${q} l’objectif : le Courant forcit, objectifs suivants <b>+${surgePct(s.to)}</b>.`
+    : `<br>🌊 Le Courant faiblit : objectifs suivants ${s.to > 1 ? `<b>+${surgePct(s.to)}</b>` : 'revenus à la normale'}.`;
+};
+
 function topbar(extra = '') {
   const r = S.run;
   const z = ZONES[r.zone];
   return `<header class="topbar">
     <div class="tb-l"><b>${z.name}</b> <span class="muted">${z.depth}${r.depth ? ` · ${DEPTHS[r.depth].name}` : ''}${r.daily ? ' · Plongée du jour' : ''}</span>${extra}</div>
-    <div class="tb-c">${oxygen(r)} <span class="pearls" data-tip="Perles">🦪 ${r.pearls}</span></div>
+    <div class="tb-c">${oxygen(r)} <span class="pearls" data-tip="Perles">🦪 ${r.pearls}</span>${surgeChip(r)}</div>
     <div class="tb-r"><span class="arts">${r.artifacts.map(artifactChip).join('')}</span>
       <button class="btn tiny" data-action="bag">Banc (${r.bag.length})</button>
       <button class="btn tiny" data-action="rules">?</button>
@@ -385,7 +396,7 @@ function renderReward() {
   const r = S.run; const rw = r.reward; const st = rw.stages[0];
   const head = `<h2>${rw.type === 'boss' ? '👑 Gardien vaincu !' : '🎉 Plongée réussie !'}</h2>
     <p>Score <b>${fmt(rw.score)}</b> / ${fmt(rw.target)} — <b>🦪 +${rw.pearls} perles</b>
-    <span class="muted">(${rw.lines.map(([l, n]) => `${l} +${n}`).join(', ')})</span>${rw.type === 'boss' ? '<br>🫧 Oxygène entièrement rechargé.' : ''}</p>`;
+    <span class="muted">(${rw.lines.map(([l, n]) => `${l} +${n}`).join(', ')})</span>${surgeLine(rw.surge)}${rw.type === 'boss' ? '<br>🫧 Oxygène entièrement rechargé.' : ''}</p>`;
   let body = '';
   if (!st) {
     body = ''; // dernière étape choisie : la fenêtre de choix prend le relais
@@ -535,6 +546,7 @@ const RULES = `
   <li><b>Parasites</b> ☣️ : ces cartes encombrent votre banc. Relâchez-les au comptoir, ou faites-les manger par un Orque ou un Labre.</li></ul>
   <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien y met fin aussitôt.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
+  🌊 <b>Courant</b> : si votre score dépasse largement l’objectif (plus de 1,5×), les objectifs suivants augmentent ; une plongée gagnée de justesse ou ratée le fait retomber.
   Vaincre l’expédition débloque une <b>Profondeur</b> plus difficile.</p>
   <h4>Astuces</h4><p>Survolez une carte pour lire la définition de ses mots-clés et voir les cartes qu’elle cite, comme la forme éclose d’un Œuf de requin.
   Le bandeau en haut d’une carte indique son type : 🐾 créature, 🪸 corail, 🏺 artefact ou 🧬 mutation.

@@ -351,6 +351,7 @@ export function targetFor(run, node) {
   if (node.type === 'elite') t *= BASE.eliteX;
   if (node.type === 'boss') t *= BASE.bossX;
   if (run.depth >= 1) t *= 1.15;
+  t *= run.surge || 1;
   const mag = 10 ** Math.max(1, Math.floor(Math.log10(t)) - 1);
   return Math.round(t / mag) * mag;
 }
@@ -662,6 +663,18 @@ export function nextTide(run) {
   d.phase = 'place';
 }
 
+// Courant 🌊 : les objectifs suivent le niveau réel du joueur (voir BASE.surge).
+// `q` = score / objectif (0 pour un échec). Renvoie { from, to, q }.
+function updateSurge(run, q) {
+  const k = BASE.surge;
+  const from = run.surge || 1;
+  let to = from;
+  if (q > k.over) to = Math.min(k.max, from + k.step * (Math.min(q, k.cap) - k.over));
+  else if (q < k.tight) to = Math.max(1, from - k.relax);
+  run.surge = Math.round(to * 100) / 100;
+  return { from, to: run.surge, q };
+}
+
 // Abandonner les marées restantes n'est pas permis : on peut seulement les jouer.
 function finishDive(run) {
   const d = run.dive;
@@ -672,6 +685,7 @@ function finishDive(run) {
     run.artifacts = run.artifacts.filter((a) => a !== 'trefle');
     run.toast = '🍀 Le coquillage porte-bonheur se brise… mais la plongée est sauvée !';
   }
+  const surge = updateSurge(run, win ? d.score / d.target : 0);
   if (!win) {
     if (d.type === 'boss') { endRun(run, false); return; }
     run.oxygen--;
@@ -703,7 +717,7 @@ function finishDive(run) {
       stages.push({ kind: 'mutation', options: mutationOffers(run, 3) });
     }
   }
-  run.reward = { pearls, lines, stages, score: d.score, target: d.target, type: d.type };
+  run.reward = { pearls, lines, stages, score: d.score, target: d.target, type: d.type, surge };
   if (d.type === 'boss' && run.zone >= ZONES.length - 1) { endRun(run, true); return; }
   run.phase = 'reward';
 }
