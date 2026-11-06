@@ -422,7 +422,8 @@ function renderDraft() {
   const round = dr.picks.length + 1;
   const counts = {};
   for (const c of r.bag) (counts[c.t] = counts[c.t] || { c, n: 0 }).n++;
-  const bag = Object.values(counts).map(({ c, n }) => `<span class="bag-chip" data-zoom>${zoomTpl(creatureCard(c))}${CREATURES[c.t].emoji}${n > 1 ? ` <b>×${n}</b>` : ''}</span>`).join('');
+  // Le kit de départ en mini-cartes, une par espèce : ce que vous avez déjà, avant tout choix.
+  const bag = Object.values(counts).map(({ c, n }) => `<div class="kit-card ${dr.picks.includes(c.t) ? 'new' : ''}">${creatureCard(c, { mini: true })}${n > 1 ? `<span class="kit-n">×${n}</span>` : ''}</div>`).join('');
   const intro = ['Regardez ce que le hasard vous donne : quelle direction prendre ?', 'Confirmez votre direction, ou préparez une autre piste.', 'Dernier choix : une pièce maîtresse pour votre récif.'][dr.picks.length];
   const offer = (t) => offerCard({ t }, { action: 'draft', id: t });
   app.innerHTML = `<div class="screen">${topbar()}<div class="between draft">
@@ -430,11 +431,15 @@ function renderDraft() {
     <p class="ev-tx">${intro}</p>
     <div class="draft-board">
       <div class="draft-kit">
-        <div><h3>Vos coraux</h3><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
-        <div><h3>Votre banc · ${r.bag.length} créatures</h3><div class="bag-chips">${bag}</div>
-          <h3 class="eco-h">Écosystèmes</h3><div class="eco-row">${ecoChips(r)}</div></div>
+        <div class="kit-head"><h3>🎒 Déjà dans votre sac</h3><span class="muted">offert au départ, survolez pour lire</span></div>
+        <div class="kit-row">
+          <div class="kit-group"><div class="kit-lbl">${CARD_TYPES.coral.icon} Vos coraux · ${r.corals.length}</div><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
+          <div class="kit-group"><div class="kit-lbl">${CARD_TYPES.creature.icon} Votre banc · ${r.bag.length} créatures</div><div class="kit-bag">${bag}</div></div>
+        </div>
+        <div class="kit-eco"><span class="kit-lbl">Écosystèmes</span><div class="eco-row">${ecoChips(r)}</div></div>
       </div>
-      <h3>Choisissez une créature</h3>
+      <div class="draft-plus">＋</div>
+      <h3>Ajoutez une créature à votre banc</h3>
       <div class="offer">${dr.options.map(offer).join('')}</div>
     </div>
   </div></div>`;
@@ -765,7 +770,7 @@ const likedHint = `Sous une offre, l'icône d'un de vos coraux signale qu'il la 
 const TIPS = [
   // Préparation (vraie expédition)
   { id: 'draft', title: 'Préparer son expédition', target: '.draft-board', when: (r) => r.phase === 'draft',
-    text: `En haut, ce que le hasard vous donne : 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets. En bas, choisissez la créature qui les complète le mieux, trois fois de suite. ${likedHint}` },
+    text: `En haut, ce que le hasard vous donne : 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets. En bas, choisissez la créature qui les complète le mieux, trois fois de suite. Sous chaque offre, les avantages qu'elle apporte à votre banc.` },
   // Plongée : ce qui prolonge le cœur du jeu
   { id: 'cond', title: 'Les conditions', target: '.conds .cond', when: (r) => r.phase === 'dive' && r.dive.cond.length > 0,
     text: `Cette plongée ajoute une règle, rappelée ici : <b>survolez-la</b>. Les plongées périlleuses et les gardiens en ont toujours.` },
