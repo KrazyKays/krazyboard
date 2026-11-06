@@ -93,8 +93,6 @@ h2, h3, p { margin: 0; }
 @keyframes nodepulse { to { stroke-width: 6; } }
 .map-side { min-height: 0; max-width: 720px; display: flex; flex-direction: column; justify-content: center; gap: clamp(4px, 1.2vh, 12px); }
 .map-side h3 { color: var(--accent2); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
-.routes { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
-.btn.route { text-align: left; padding: 5px 14px; }
 .boss-card { background: rgba(255,209,102,.08); border: 1px solid rgba(255,209,102,.35); border-radius: 12px; padding: 6px 12px; font-size: .92rem; }
 .bc-h { font-weight: 700; color: var(--accent2); margin-bottom: 2px; } .bc-c { margin: 2px 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .82rem; color: var(--muted); }

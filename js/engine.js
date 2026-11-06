@@ -199,10 +199,26 @@ export function tutorialRun() {
   } });
   run.tutorial = true;
   run.artifacts = [];
+  run.map = tutorialMap(run);
   const first = run.map.rows[0].find(Boolean);
   enterNode(run, first.row, first.lane);
   tutorialHand(run);
   return run;
+}
+
+// Carte du tutoriel : le plus court chemin qui montre chaque type d'étape une fois.
+// Plongée imposée → épave ou comptoir → périlleuse ou plongée → nurserie → gardien,
+// qui clôt le tutoriel. Chaque étape mène aux deux suivantes : aucun choix ne prive
+// d'un type d'étape que le joueur n'aurait pas encore vu.
+function tutorialMap(run) {
+  const node = (row, lane, type, links, cond) => ({ row, lane, type, done: false, links, ...(cond ? { cond } : {}) });
+  return { zone: 0, rows: [
+    [null, node(0, 1, 'dive', [0, 2]), null],
+    [node(1, 0, 'event', [0, 2]), null, node(1, 2, 'shop', [0, 2])],
+    [node(2, 0, 'elite', [1], ['glace']), null, node(2, 2, 'dive', [1])],
+    [null, node(3, 1, 'rest', [1]), null],
+    [null, node(4, 1, 'boss', [], ['kraken']), null],
+  ] };
 }
 
 // Première plongée du tutoriel : la main préparée pour la démonstration.
@@ -344,7 +360,7 @@ export function backToMap(run) {
 
 function endRun(run, win) {
   run.phase = 'end';
-  run.end = { win, zone: run.zone, row: run.pos ? run.pos.row : 0 };
+  run.end = { win, zone: run.zone, row: run.pos ? run.pos.row : 0, tutorial: !!run.tutorial };
 }
 
 // ── Plongée ─────────────────────────────────────────────────
@@ -708,7 +724,7 @@ function finishDive(run) {
     }
   }
   run.reward = { pearls, lines, stages, score: d.score, target: d.target, type: d.type };
-  if (d.type === 'boss' && run.zone >= ZONES.length - 1) { endRun(run, true); return; }
+  if (d.type === 'boss' && (run.tutorial || run.zone >= ZONES.length - 1)) { endRun(run, true); return; }
   run.phase = 'reward';
 }
 

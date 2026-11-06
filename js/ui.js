@@ -217,7 +217,7 @@ function renderTitle() {
 function renderMap() {
   const r = S.run;
   const av = E.availableNodes(r);
-  const W = 360; const RH = 74; const H = 40 + (ROWS_PER_ZONE + 1) * RH;
+  const W = 360; const RH = 74; const H = 40 + r.map.rows.length * RH;
   const X = (l) => 60 + l * 120; const Y = (row) => 34 + row * RH;
   let lines = ''; let nodes = '';
   r.map.rows.forEach((row) => row.forEach((n) => {
@@ -242,12 +242,7 @@ function renderMap() {
       <circle cx="${X(n.lane)}" cy="${Y(n.row)}" r="${rad}"/>
       <text x="${X(n.lane)}" y="${Y(n.row) + 1}" font-size="${n.type === 'boss' ? 26 : 19}">${n.done && !cur ? '✓' : T.icon}</text></g>`;
   }));
-  const boss = r.map.rows[ROWS_PER_ZONE][1];
-  const next = av.map((n) => {
-    const T = NODE_TYPES[n.type];
-    const tg = ['dive', 'elite', 'boss'].includes(n.type) ? ` · objectif <b>${fmt(E.targetFor(r, n))}</b>` : '';
-    return `<button class="btn route" data-type="${n.type}" data-action="node" data-row="${n.row}" data-lane="${n.lane}">${T.icon} ${T.name}${tg}${n.cond ? ` · ${n.cond.map((k) => CONDITIONS[k].emoji).join('')}` : ''}</button>`;
-  }).join('');
+  const boss = r.map.rows[r.map.rows.length - 1][1];
   const zoneBg = ZONES[r.zone].bg;
   app.innerHTML = `<div class="screen map-screen" style="--z1:${zoneBg[0]};--z2:${zoneBg[1]}">${topbar()}
     <div class="map-wrap">
@@ -255,8 +250,6 @@ function renderMap() {
         <svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte de la zone">${lines}${nodes}</svg>
       </div>
       <div class="map-side">${toast()}
-        <h3>Choisissez votre route</h3>
-        <div class="routes">${next || '<div class="muted">—</div>'}</div>
         <div class="boss-card">
           <div class="bc-h">🛡️ Gardien de la zone · objectif ${fmt(E.targetFor(r, boss))}</div>
           ${boss.cond.map((k) => `<div class="bc-c" ${glossText(CONDITIONS[k].text)}><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
@@ -506,8 +499,9 @@ function renderEnd() {
   const top = [...r.bag].sort((a, b) => b.bonus - a.bonus)[0];
   app.innerHTML = `<div class="screen"><div class="between end">
     <div class="logo">${e.win ? '🏆' : '🫧'}</div>
-    <h2>${e.win ? 'Les Abysses sont à vous !' : 'L’expédition s’achève'}</h2>
-    <p>${e.win ? 'Les trois gardiens sont vaincus : votre récif entre dans la légende.' : `Vous remontez depuis <b>${ZONES[e.zone].name}</b> (rangée ${Math.min(e.row + 1, ROWS_PER_ZONE + 1)}).`}</p>
+    <h2>${e.tutorial && e.win ? 'Tutoriel terminé !' : e.win ? 'Les Abysses sont à vous !' : 'L’expédition s’achève'}</h2>
+    <p>${e.tutorial && e.win ? 'Le gardien du Lagon est vaincu : place à une vraie expédition, à travers trois zones et leurs trois gardiens.'
+      : e.win ? 'Les trois gardiens sont vaincus : votre récif entre dans la légende.' : `Vous remontez depuis <b>${ZONES[e.zone].name}</b> (rangée ${Math.min(e.row + 1, ROWS_PER_ZONE + 1)}).`}</p>
     <div class="lines">
       <div class="line"><span>Plongeur</span><b>${DIVERS[r.diverId].emoji} ${DIVERS[r.diverId].name}</b></div>
       <div class="line"><span>Plongées</span><b>${r.dives}</b></div>
@@ -516,7 +510,7 @@ function renderEnd() {
       ${top && top.bonus ? `<div class="line"><span>Star de l’expédition</span><b>${CREATURES[top.t].emoji} ${CREATURES[top.t].name} (+${top.bonus})</b></div>` : ''}
       <div class="line"><span>Graine</span><b>${r.seed}</b></div>
     </div>
-    ${e.win && r.depth === meta.depth - 1 && meta.depth <= DEPTHS.length - 1 ? `<p class="unlock">🔓 ${DEPTHS[meta.depth].name} débloquée !</p>` : ''}
+    ${e.win && !e.tutorial && r.depth === meta.depth - 1 && meta.depth <= DEPTHS.length - 1 ? `<p class="unlock">🔓 ${DEPTHS[meta.depth].name} débloquée !</p>` : ''}
     <div class="row"><button class="btn primary" data-action="totitle">Retour au menu</button></div>
   </div></div>`;
 }
@@ -572,7 +566,17 @@ function collGroups(groups, reserved) {
     <h3>${g.label} · ${g.cards.length}</h3>
     ${g.cards.length ? `<div class="coll" style="--cols:${cols};--rows:${rows(cols, g)}">${g.cards.join('')}</div>` : ''}</div>`).join('')}</div>`;
 }
-const bySpecies = (a, b) => a.t.localeCompare(b.t);
+// Ordre de lecture des créatures : famille (ordre des écosystèmes), rareté, nom,
+// puis à espèce égale la plus forte d'abord.
+const FAM_ORDER = Object.keys(FAMILIES);
+const RAR_ORDER = Object.keys(RARITY);
+const byKind = (ta, tb) => {
+  const a = CREATURES[ta]; const b = CREATURES[tb];
+  return FAM_ORDER.indexOf(a.fam) - FAM_ORDER.indexOf(b.fam)
+    || RAR_ORDER.indexOf(a.rar) - RAR_ORDER.indexOf(b.rar)
+    || a.name.localeCompare(b.name, 'fr');
+};
+const bySpecies = (a, b) => byKind(a.t, b.t) || (b.star || 0) - (a.star || 0) || (b.bonus || 0) - (a.bonus || 0);
 
 function modalHTML() {
   const r = S.run;
@@ -668,7 +672,7 @@ function modalHTML() {
   }
   if (S.modal === 'bestiary') {
     const unknown = '<div class="card mini unknown"><div class="c-em">❔</div><div class="c-nm">???</div></div>';
-    const cr = Object.keys(CREATURES).map((t) => (meta.seenC.includes(t) ? creatureCard({ t }, { mini: true }) : unknown));
+    const cr = Object.keys(CREATURES).sort(byKind).map((t) => (meta.seenC.includes(t) ? creatureCard({ t }, { mini: true }) : unknown));
     const co = Object.keys(CORALS).map((t) => (meta.seenK.includes(t) ? coralCard(t, { mini: true }) : unknown));
     return `<div class="modal-bg" data-action="closemodal"><div class="modal wide" data-stop>
       <h2>Bestiaire · ${meta.seenC.length}/${cr.length} créatures · ${meta.seenK.length}/${co.length} coraux</h2>
@@ -800,7 +804,7 @@ const TIPS = [
     text: `Chaque zone se termine par un <b>gardien</b>, annoncé dès maintenant avec sa règle : préparez votre récif en conséquence. Le vaincre fait pousser un nouveau corail.` },
   { id: 'eco', title: 'Les écosystèmes 🌿', target: '.eco-row', when: (r) => r.phase === 'map' || r.phase === 'draft',
     text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. <span class="glow">En vert</span>, le bonus est actif. Les offres l'indiquent par l'icône de la famille.` },
-  { id: 'elite', title: 'Les plongées périlleuses 💀', target: '.routes [data-type="elite"]', when: (r) => r.phase === 'map',
+  { id: 'elite', title: 'Les plongées périlleuses 💀', target: '.map .t-elite.av', when: (r) => r.phase === 'map',
     text: `Plus dures, avec une condition imposée, mais elles rapportent un <b>artefact</b> en plus de la récompense habituelle.` },
   { id: 'artifact', title: 'Les artefacts 🏺', target: '.arts', when: (r) => r.phase === 'map' && r.artifacts.length > 0,
     text: `Vos <b>artefacts</b> changent les règles pour toute l'expédition. Votre plongeur en apporte un ; les plongées périlleuses, le comptoir et les épaves en donnent d'autres.` },
@@ -1071,7 +1075,7 @@ function animateCounts() {
 function onRunEnd() {
   const r = S.run;
   meta.bestZone = Math.max(meta.bestZone, r.end.zone);
-  if (r.end.win) {
+  if (r.end.win && !r.end.tutorial) {
     meta.wins++;
     if (r.depth === meta.depth && meta.depth < DEPTHS.length - 1) meta.depth++;
   }
