@@ -119,12 +119,13 @@ function offerCard(c, o = {}) {
 const mutationCard = (m, extra = '') => `<div class="artifact mutation" data-zoom data-gloss="m|${m}">${typeBand('mutation')}<div class="a-em">${MUTATIONS[m].emoji}</div><div class="a-nm">${MUTATIONS[m].name}</div><div class="a-tx">${MUTATIONS[m].text}</div>${extra}</div>`;
 
 // Avancement des écosystèmes : composition de votre banc par famille.
-function ecoChips(r, onlyActive = false) {
+// `aim` : familles visées par une offre, soulignées pour comparer d'un coup d'œil.
+function ecoChips(r, onlyActive = false, aim = []) {
   return E.ecoStatus(r).filter((e) => !onlyActive || e.tier).map((e) => {
     const goal = e.next ? e.next.n : e.tier.n;
     const lines = e.eco.tiers.map((t) => `Dès ${t.n} : ${t.text}`).join(' | ');
     const tip = esc(`${e.eco.name} — ${FAMILIES[e.f].name}s dans votre banc. | ${lines}`);
-    return `<span class="eco ${e.tier ? 'on' : ''}" data-tip="${tip}">${FAMILIES[e.f].icon}${onlyActive ? ` ${e.eco.name}` : ` ${e.n}/${goal}`}</span>`;
+    return `<span class="eco ${e.tier ? 'on' : ''} ${aim.includes(e.f) ? 'aim' : ''}" data-tip="${tip}">${FAMILIES[e.f].icon}${onlyActive ? ` ${e.eco.name}` : ` ${e.n}/${goal}`}</span>`;
   }).join('');
 }
 
@@ -406,7 +407,18 @@ function renderReward() {
     body = `<h3>Le gardien laisse une trace : choisissez une mutation</h3><div class="offer">${st.options.map((m) => mutationCard(m, `<button class="btn primary" data-action="reward" data-id="${m}">Choisir</button>`)).join('')}</div>
       <button class="btn ghost" data-action="reward" data-id="">Passer (+4 perles)</button>`;
   }
-  app.innerHTML = `<div class="screen">${topbar()}<div class="between">${head}${body}</div></div>`;
+  // Rappel de l'écosystème actuel : de quoi juger ce que chaque carte apporterait.
+  const aim = st && st.kind === 'creature' ? st.options.map((t) => CREATURES[t].fam) : [];
+  const active = E.ecoStatus(r).filter((e) => e.tier);
+  const recap = st ? `<div class="reward-eco">
+      <div class="kit-head"><h3>🌿 Votre écosystème actuel</h3><span class="muted">${r.bag.length} créatures · ${r.corals.length} coraux${aim.length ? ' · souligné : familles proposées' : ''}</span></div>
+      <div class="kit-row">
+        <div class="kit-group"><div class="kit-lbl">${CARD_TYPES.coral.icon} Vos coraux</div><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
+        <div class="kit-group"><div class="kit-lbl">Familles du banc</div><div class="eco-row">${ecoChips(r, false, aim)}</div>
+          <div class="eco-active">${active.length ? active.map((e) => `<span>${FAMILIES[e.f].icon} <b>${e.eco.name}</b> : ${e.tier.text}</span>`).join('') : '<span class="muted">Aucun bonus d’écosystème actif pour l’instant.</span>'}</div></div>
+      </div>
+    </div>` : '';
+  app.innerHTML = `<div class="screen">${topbar()}<div class="between">${head}${recap}${body}</div></div>`;
 }
 
 // ── Draft de départ ─────────────────────────────────────────
