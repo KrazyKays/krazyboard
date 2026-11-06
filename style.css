@@ -376,6 +376,12 @@ body.dragging .card[data-action]:hover { transform: none; }
 .tuto-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .tuto-actions .btn { padding: 3px 12px; }
 .tuto-turn { color: var(--accent); font-weight: 700; font-size: .84rem; }
+/* Découvertes : plus légères que le tutoriel, couleur turquoise */
+.tuto-bubble.tip { border-color: var(--accent); }
+.tuto-bubble.tip h4 { color: var(--accent); }
+.tuto-spot.tip { border-color: var(--accent); }
+.tuto-spot.tip.shade { box-shadow: 0 0 0 100vmax rgba(0,10,20,.45); }
+.tuto-block.tip.dim { background: rgba(0,10,20,.45); }
 
 /* Petits écrans (hors ordinateur) : on retrouve le défilement */
 @media (max-width: 760px), (max-height: 480px) {

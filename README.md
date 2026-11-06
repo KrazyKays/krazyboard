@@ -12,7 +12,14 @@ des profondeurs.
   (les modules ES ne se chargent pas en `file://`).
 - En ligne : voir « Déploiement » ci-dessous.
 
-Un **tutoriel** interactif est proposé sur l'écran titre : avec un départ fixé, il guide la préparation (choix imposé parmi 3 créatures), la carte et la première marée. Le joueur peut ensuite finir cette expédition, qui compte comme une vraie et garde sa propre sauvegarde.
+Un **tutoriel** interactif est proposé sur l'écran titre. Il se limite au cœur du jeu, sur la première marée d'une expédition au départ fixé :
+l'objectif, la main, poser une créature, Éclat × Mult, les voisins et lancer la marée (7 étapes). Le joueur peut ensuite finir cette expédition,
+qui compte comme une vraie et garde sa propre sauvegarde.
+
+Le reste du jeu arrive par les **Découvertes** 💡 : chaque règle avancée (couronnes, ponts, Remous, carte, gardien, écosystèmes, comptoir,
+épaves, nurserie, artefacts, mutations…) est présentée la première fois qu'elle apparaît à l'écran, toujours dans le même ordre et au plus une
+par marée ou par écran. Elles se désactivent depuis la bulle ou l'écran titre ; relancer le tutoriel les reprend depuis le début.
+Un joueur qui avait déjà des expéditions avant leur arrivée les trouve désactivées.
 Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement.
 
 Le bouton **Effacer mes données** de l'écran titre supprime, après confirmation, la sauvegarde et la progression stockées dans ce navigateur.

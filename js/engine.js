@@ -141,10 +141,10 @@ export function draftOptions(run) {
 
 export function draftChoose(run, t) {
   const dr = run.draft;
-  if (run.phase !== 'draft' || !dr.options.includes(t) || (dr.forced && t !== dr.forced)) return false;
+  if (run.phase !== 'draft' || !dr.options.includes(t)) return false;
   addCreature(run, t);
   dr.picks.push(t);
-  if (dr.picks.length >= (dr.rounds ?? BASE.draftRounds)) {
+  if (dr.picks.length >= BASE.draftRounds) {
     run.draft = null;
     run.phase = 'map';
     run.toast = 'Votre banc est prêt : bonne plongée !';
@@ -187,22 +187,23 @@ export function offerHints(run, t) {
   return hints;
 }
 
-// Expédition du tutoriel : graine, départ et choix de préparation sont fixés. Le Nautile
-// imposé illustre les deux indices d'une offre : il plaît au Corail cerveau et débloque un
-// écosystème ; le Dauphin et l'Espadon montrent une simple progression.
+// Expédition du tutoriel : graine et départ fixés, sans préparation. Elle s'ouvre
+// directement sur la première plongée : le tutoriel n'enseigne que le cœur du jeu,
+// le reste se découvre ensuite, une mécanique à la fois (voir les Découvertes de l'UI).
 export function tutorialRun() {
   const run = newRun({ seed: 2024, kit: {
     corals: ['cerveau', 'gorgone'],
-    bag: ['sardine', 'sardine', 'sardine', 'crevette', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'globe', 'loutre'],
+    bag: ['sardine', 'sardine', 'sardine', 'crevette', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'globe', 'loutre', 'nautile'],
   } });
   run.tutorial = true;
-  run.phase = 'draft';
-  run.draft = { picks: [], options: ['dauphin', 'nautile', 'espadon'], rounds: 1, forced: 'nautile' };
+  const first = run.map.rows[0].find(Boolean);
+  enterNode(run, first.row, first.lane);
+  tutorialHand(run);
   return run;
 }
 
 // Première plongée du tutoriel : la main préparée pour la démonstration.
-export function tutorialHand(run) {
+function tutorialHand(run) {
   const d = run.dive;
   const pool = [...d.hand, ...d.draw];
   const take = (t) => pool.splice(pool.findIndex((id) => inst(run, id).t === t), 1)[0];

@@ -23,8 +23,12 @@ function localKeys() {
   try { return Object.keys(localStorage).filter((k) => k.startsWith(KEY_PREFIX)); } catch { return []; }
 }
 
-const newMeta = () => ({ runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {} });
-const meta = Object.assign(newMeta(), loadJSON(META_KEY, {}));
+// tips : Découvertes déjà lues ; tipsOff : le joueur les a masquées.
+const newMeta = () => ({ runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {}, tips: [], tipsOff: false });
+const storedMeta = loadJSON(META_KEY, {});
+const meta = Object.assign(newMeta(), storedMeta);
+// Un joueur qui a déjà des expéditions derrière lui ne reçoit pas les Découvertes d'office.
+if (storedMeta.tipsOff === undefined) meta.tipsOff = meta.runs > 0;
 const saveMeta = () => saveJSON(META_KEY, meta);
 
 const S = {
@@ -36,6 +40,9 @@ const S = {
   depth: Math.min(meta.depth, 0),
   anim: false,
   tuto: null,   // { i } pendant la partie guidée du tutoriel, jamais sauvegardée
+  tipShown: null, // Découverte affichée en ce moment
+  tipMoment: null, // moment de jeu de la dernière Découverte lue : une seule par moment
+  tipLast: null,   // dernière Découverte lue (celles qui la suivent directement n'attendent pas)
   notice: null, // message ponctuel de l'écran titre
 };
 
@@ -196,6 +203,7 @@ function renderTitle() {
     </div>
     <div class="row">
       ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
+      <button class="btn ghost" data-action="tipstoggle" data-tip="${esc(`Découvertes — Les règles avancées vous sont présentées une à une, la première fois que vous les rencontrez. | ${meta.tips.length}/${TIPS.length} déjà lues.`)}">💡 Découvertes : ${meta.tipsOff ? 'non' : 'oui'}</button>
       <button class="btn ghost" data-action="rules">Règles</button>
       <button class="btn ghost" data-action="bestiary">Bestiaire ${meta.seenC.length}/${Object.keys(CREATURES).length}</button>
       <button class="btn ghost" data-action="wipeask" ${localKeys().length ? '' : 'disabled'}>🗑 Effacer mes données</button>
@@ -238,7 +246,7 @@ function renderMap() {
   const next = av.map((n) => {
     const T = NODE_TYPES[n.type];
     const tg = ['dive', 'elite', 'boss'].includes(n.type) ? ` · objectif <b>${fmt(E.targetFor(r, n))}</b>` : '';
-    return `<button class="btn route" data-action="node" data-row="${n.row}" data-lane="${n.lane}">${T.icon} ${T.name}${tg}${n.cond ? ` · ${n.cond.map((k) => CONDITIONS[k].emoji).join('')}` : ''}</button>`;
+    return `<button class="btn route" data-type="${n.type}" data-action="node" data-row="${n.row}" data-lane="${n.lane}">${T.icon} ${T.name}${tg}${n.cond ? ` · ${n.cond.map((k) => CONDITIONS[k].emoji).join('')}` : ''}</button>`;
   }).join('');
   const zoneBg = ZONES[r.zone].bg;
   app.innerHTML = `<div class="screen map-screen" style="--z1:${zoneBg[0]};--z2:${zoneBg[1]}">${topbar()}
@@ -414,14 +422,9 @@ function renderDraft() {
   for (const c of r.bag) (counts[c.t] = counts[c.t] || { c, n: 0 }).n++;
   const bag = Object.values(counts).map(({ c, n }) => `<span class="bag-chip" data-zoom>${zoomTpl(creatureCard(c))}${CREATURES[c.t].emoji}${n > 1 ? ` <b>×${n}</b>` : ''}</span>`).join('');
   const intro = ['Regardez ce que le hasard vous donne : quelle direction prendre ?', 'Confirmez votre direction, ou préparez une autre piste.', 'Dernier choix : une pièce maîtresse pour votre récif.'][dr.picks.length];
-  // Tutoriel : on lit d'abord les 3 offres, puis seule la créature imposée se choisit.
-  const armed = !S.tuto || TUTO[S.tuto.i].pick;
-  const offer = (t) => {
-    const locked = dr.forced && t !== dr.forced;
-    return offerCard({ t }, { action: armed && !locked ? 'draft' : '', id: t, dim: armed && locked, pick: armed && dr.forced === t });
-  };
+  const offer = (t) => offerCard({ t }, { action: 'draft', id: t });
   app.innerHTML = `<div class="screen">${topbar()}<div class="between draft">
-    <h2>🧭 Préparez votre expédition · ${dr.forced ? 'choix imposé' : `choix ${round}/${dr.rounds ?? BASE.draftRounds}`}</h2>
+    <h2>🧭 Préparez votre expédition · choix ${round}/${BASE.draftRounds}</h2>
     <p class="ev-tx">${intro}</p>
     <div class="draft-kit">
       <div><h3>Vos coraux</h3><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
@@ -667,64 +670,38 @@ function modalHTML() {
 }
 
 // ── Tutoriel ────────────────────────────────────────────────
-// Le parcours suit une vraie expédition : préparation, carte, plongée. Les étapes `done`
-// attendent une action du joueur ; `hover` laisse survoler les cartes ; les autres se
-// lisent et bloquent le reste de l'écran. À la fin, le joueur peut poursuivre l'expédition.
+// Le tutoriel n'enseigne que le cœur du jeu, sur la première plongée d'une expédition au
+// départ fixé : l'objectif, la main, poser, Éclat × Mult, les voisins, lancer la marée.
+// Tout le reste (couronnes, ponts, carte, comptoir…) arrive ensuite par les Découvertes.
+// Les étapes `done` attendent une action du joueur ; les autres se lisent et bloquent l'écran.
 const dive = () => S.run.dive;
 const TUTO = [
-  // ── Préparation ──
-  { target: () => '.draft-kit', title: 'Préparez votre expédition',
-    text: () => `Chaque expédition commence ici. En haut, ce que le hasard vous donne ; en bas, la créature à y ajouter. Pour ce tutoriel, le tirage est toujours le même.` },
-  { target: () => '.draft-kit .mini-corals', title: 'Vos coraux', hover: true,
-    text: () => `Vos créatures se posent autour d'eux. La pastille rose indique le <b>Mult</b> de base. <b>Survolez-les</b> pour lire leur effet : ici, le Corail cerveau récompense les Mollusques et la Gorgone aime être bien remplie. C'est votre première piste.` },
-  { target: () => '.bag-chips', title: 'Votre banc', hover: true,
-    text: () => `Le paquet dans lequel vous piochez à chaque marée. <b>×3</b> signale trois exemplaires de la même créature. <b>Survolez-les</b> pour lire leurs effets.` },
-  { target: () => '.draft-kit .eco-row', title: 'Les écosystèmes', hover: true,
-    text: () => `Le banc compte ses créatures par famille. <b>🐟 4/7</b> : 4 Poissons, le prochain palier est à 7. <span class="glow">En vert</span>, un bonus est déjà actif. <b>Survolez</b> pour voir les paliers.` },
-  { target: () => '.offer', title: 'Les offres', hover: true,
-    text: () => `Vous gardez 1 créature sur 3. Sous chaque carte, ce qu'elle apporte : <b>🧠 Corail cerveau</b>, l'un de vos coraux la met en valeur ; <b>🌿 Troupeau 2/3</b>, un écosystème progresse ; <span class="glow">sur fond vert</span>, elle le débloque.` },
-  { title: 'Votre premier choix', pick: true, target: () => '.offer [data-action="draft"]',
-    text: () => `Le <b>Nautile</b> coche les deux cases : il plaît au Corail cerveau et débloque le Nuage d'encre. Ici, ce choix vous est imposé : cliquez dessus. En vraie expédition, vous ferez 3 choix libres.`,
-    done: () => S.run.phase !== 'draft' },
-  // ── Carte ──
-  { target: () => '.map-col', title: 'La carte',
-    text: () => `Votre route descend de haut en bas, et chaque étape n'ouvre que celles qui lui sont reliées : 🐟 plongées, 💀 plongées périlleuses, ❓ épaves, ⚓ comptoir pour acheter, 🌱 nurserie pour renforcer votre récif.` },
-  { target: () => '.boss-card', title: 'Le gardien',
-    text: () => `Chaque zone se termine par un <b>gardien</b> annoncé à l'avance : préparez votre récif en conséquence. Le rater met fin à l'expédition.` },
-  { title: 'En route !', target: () => '.routes',
-    text: () => `Choisissez une plongée pour commencer.`,
-    done: () => S.run.phase === 'dive' },
-  // ── Plongée ──
   { target: () => '.hud', title: 'Le but',
-    text: () => `Chaque plongée a un <b>objectif de points</b> à atteindre en 4 <b>marées</b> 🌊. La partie hachurée de la barre montre ce que rapportera la marée en préparation.` },
+    text: () => `Une plongée, c'est un <b>objectif de points</b> à atteindre en 4 <b>marées</b> 🌊. La barre se remplit à chaque marée.` },
   { target: () => '.hand', title: 'Vos créatures',
-    text: () => `À chaque marée, vous piochez des créatures dans votre banc. Chaque carte indique sa <b>famille</b>, son <b>Éclat</b> (la pastille sombre) et son effet.` },
+    text: () => `Voici votre main, piochée dans votre banc. Chaque créature a un <b>Éclat</b>, la pastille en haut à droite : ce qu'elle rapporte une fois posée.` },
   { title: 'Posez une créature',
     target: () => (S.ui.sel ? '.reef' : '.hand [data-t="sardine"]'),
     text: () => (S.ui.sel
-      ? `Cliquez sur un emplacement <span class="glow">en surbrillance</span> (vous pouvez aussi y glisser la carte), par exemple la <b>Surface ⬆</b> du premier corail.`
-      : `Cliquez sur les <b>Sardines</b> ou faites-les glisser : vous les poserez autour d'un corail.`),
+      ? `Cliquez sur un emplacement <span class="glow">en surbrillance</span> autour d'un corail, par exemple la <b>Surface ⬆</b> du premier.`
+      : `Cliquez sur les <b>Sardines</b>, ou faites-les glisser vers le récif.`),
     done: () => E.boardCount(S.run) >= 1 },
-  { title: 'Soignez les voisinages',
+  { target: () => '.formula', title: 'Éclat × Mult',
+    text: () => `Chaque corail marque l'<span style="color:var(--accent2)"><b>Éclat</b></span> des créatures posées autour de lui, multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Certaines créatures, comme la Méduse, augmentent le Mult : c'est là que naissent les gros scores.` },
+  { title: 'Les voisins',
     target: () => (S.ui.sel ? '.reef' : '.hand [data-t="crevette"]'),
     text: () => (S.ui.sel
-      ? `Posez-la sur un <b>Flanc ⬅ ➡</b> du même corail : Surface et Flancs se touchent. Une erreur ? Recliquez sur une créature posée pour la reprendre.`
-      : `Une créature peut renforcer celles qui la touchent. Cliquez sur la <b>Crevette nettoyeuse</b>, qui donne +3 Éclat à ses voisins.`),
+      ? `Posez-la sur un <b>Flanc ⬅ ➡</b> du même corail, à côté des Sardines. Une erreur ? Recliquez sur une créature posée pour la reprendre.`
+      : `Les créatures qui se touchent s'entraident. La <b>Crevette nettoyeuse</b> donne +3 Éclat à ses voisines : cliquez dessus.`),
     done: () => E.boardCount(S.run) >= 2 },
-  { target: () => '.bridge', title: 'Les ponts 🔗',
-    text: () => `Ce lien relie deux coraux : le Flanc ➡ de l'un et le Flanc ⬅ de l'autre sont <b>voisins</b>. Posez une créature de chaque côté et il s'illumine : les effets de voisinage passent d'un corail à l'autre.` },
-  { target: () => '.formula', title: 'Éclat × Mult',
-    text: () => `Chaque corail marque son <span style="color:var(--accent2)"><b>Éclat</b></span> (la somme des créatures posées) multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Certaines créatures, comme la Méduse, augmentent le Mult : c'est là que naissent les gros scores.` },
-  { target: () => '.reef', title: 'Les couronnes',
-    text: () => `Occupez les 4 emplacements d'un corail pour former une <b>couronne</b> : 💠 +1 Mult. Si les créatures sont d'une seule famille, 🎯 <b>Harmonie</b>, Mult ×2 ; si elles sont toutes différentes, 🌈 <b>Mosaïque</b>, Mult ×1,5. Chaque bonus actif s'affiche près du corail, avec sa valeur : <b>+1M</b>, <b>×2M</b>.` },
   { title: 'Lancez la marée', launch: true, target: () => '[data-action="launch"]',
-    text: () => `Plus le récif est rempli, plus la marée rapporte, et vous n'en avez que 4 : posez d'autres créatures, puis cliquez sur <b>Lancer la marée</b> pour marquer vos points.`,
+    text: () => `Posez d'autres créatures si vous le voulez : plus le récif est rempli, plus la marée rapporte. Puis cliquez sur <b>Lancer la marée</b>.`,
     done: () => dive().phase === 'scored' },
-  { target: () => '.actionbar', title: 'Après la marée',
-    text: () => `Les points s'ajoutent à votre score. Les créatures posées repartent dans la défausse, sauf les <b>Sédentaires</b>, et celles restées en main sont conservées. 🌀 <b>Remous</b> échange des créatures de votre main contre de nouvelles.` },
-  { title: 'À vous de jouer', final: true,
-    text: () => `Une plongée ratée coûte 1 🫧 <b>Oxygène</b> ; à zéro, l'expédition s'arrête. Les perles 🦪 servent au comptoir. Vous pouvez finir cette expédition, qui compte comme une vraie et ne touche pas à votre autre sauvegarde. Bonne chance !` },
+  { title: 'Vous savez jouer !', final: true, target: () => '.actionbar',
+    text: () => `Les points s'ajoutent à votre score. Les créatures posées partent à la défausse, celles restées en main sont gardées pour la marée suivante.<br>Finissez cette plongée : le reste du jeu vous sera présenté pas à pas, au moment où vous le rencontrerez 💡.` },
 ];
+// Ce que le tutoriel a déjà expliqué : ces Découvertes sont considérées comme lues.
+const TUTO_COVERS = ['aftertide'];
 
 function startTuto() {
   S.run = E.tutorialRun();
@@ -732,35 +709,131 @@ function startTuto() {
   S.screen = 'game';
   S.modal = null;
   S.tuto = { i: 0 };
-  meta.tuto = true; saveMeta();
+  // Le tutoriel relance le fil des Découvertes depuis le début.
+  Object.assign(meta, { tuto: true, tips: [], tipsOff: false });
+  saveMeta();
 }
 function endTuto() { S.tuto = null; S.run = null; resetUI(); S.screen = 'title'; }
 
-function renderTuto() {
+// Bulle commune au tutoriel et aux Découvertes. `live` : le joueur agit pendant qu'elle s'affiche.
+function overlay({ title, count, text, buttons, live = false, target = null, fallback = null, kind = '' }) {
+  app.insertAdjacentHTML('beforeend', `
+    ${live ? '' : `<div class="tuto-block ${kind}"></div>`}
+    <div class="tuto-spot ${live ? '' : 'shade'} ${kind}" hidden></div>
+    <div class="tuto-bubble ${kind}"><h4>${title}<span>${count}</span></h4>
+      <div>${text}</div><div class="tuto-actions">${buttons}</div></div>`);
+  placeBubble(target, fallback);
+}
+
+// Avant de dessiner l'écran : il peut dépendre de l'étape (bouton de marée actif ou non).
+function advanceTuto() {
   while (TUTO[S.tuto.i].done && TUTO[S.tuto.i].done()) S.tuto.i++;
+}
+function renderTuto() {
   const step = TUTO[S.tuto.i];
   const live = !!step.done;
   const buttons = step.final
-    ? '<button class="btn" data-action="tutoend">Retour au menu</button><button class="btn primary" data-action="tutofree">Continuer cette expédition</button>'
+    ? '<button class="btn" data-action="tutoend">Retour au menu</button><button class="btn primary" data-action="tutofree">Continuer la plongée</button>'
     : `<button class="btn ghost" data-action="tutoend">Quitter</button>${live ? '<span class="tuto-turn">À vous de jouer !</span>' : '<button class="btn primary" data-action="tutonext">Suivant</button>'}`;
-  app.insertAdjacentHTML('beforeend', `
-    ${live || step.hover ? '' : `<div class="tuto-block ${step.final ? 'dim' : ''}"></div>`}
-    <div class="tuto-spot ${live ? '' : 'shade'}" hidden></div>
-    <div class="tuto-bubble"><h4>${step.title}<span>${S.tuto.i + 1}/${TUTO.length}</span></h4>
-      <div>${step.text()}</div><div class="tuto-actions">${buttons}</div></div>`);
-  placeTuto(step);
+  // La carte visée n'est peut-être pas en main : on retombe alors sur la main.
+  overlay({ title: step.title, count: `${S.tuto.i + 1}/${TUTO.length}`, text: step.text(), buttons, live, target: step.target && step.target(), fallback: '.hand' });
 }
 
-function placeTuto(step) {
+// ── Découvertes ─────────────────────────────────────────────
+// Après le tutoriel, chaque règle avancée est présentée la première fois qu'elle apparaît
+// à l'écran, toujours dans cet ordre, et au plus une par moment de jeu (une marée, un
+// écran) : le joueur a le temps d'essayer avant d'apprendre la suite. `after` : ne vient
+// qu'une fois cette autre Découverte lue ; avec `chain`, elle la suit sans attendre.
+const placing = (r) => r.phase === 'dive' && r.dive.phase === 'place';
+const stage = (r, kind) => r.phase === 'reward' && r.reward.stages[0]?.kind === kind;
+const handOf = (r, f) => r.dive.hand.map((id) => E.inst(r, id)).find((c) => f(CREATURES[c.t]));
+const TIPS = [
+  // Préparation (vraie expédition)
+  { id: 'draft', title: 'Préparer son expédition', target: '.draft-kit', when: (r) => r.phase === 'draft',
+    text: `Le hasard vous donne 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets, puis gardez 1 créature sur 3, trois fois. Sous chaque offre, un indice : <b>🧠</b> l'un de vos coraux la met en valeur.` },
+  // Plongée : ce qui prolonge le cœur du jeu
+  { id: 'cond', title: 'Les conditions', target: '.conds .cond', when: (r) => r.phase === 'dive' && r.dive.cond.length > 0,
+    text: `Cette plongée ajoute une règle, rappelée ici : <b>survolez-la</b>. Les plongées périlleuses et les gardiens en ont toujours.` },
+  { id: 'aftertide', title: 'Après la marée', target: '.actionbar', when: (r) => r.phase === 'dive' && r.dive.phase === 'scored' && !r.dive.ended,
+    text: `Les créatures posées partent à la défausse, celles restées en main sont gardées. À la marée suivante, vous complétez votre main depuis la pioche.` },
+  { id: 'hover', title: 'Lire une carte', target: '.hand', when: (r) => placing(r) && r.dive.tide >= 2,
+    text: `<b>Survolez une carte</b> pour l'agrandir : la bulle définit ses mots-clés et montre les cartes qu'elle cite. Les pastilles et les icônes ont aussi leur bulle.` },
+  { id: 'sed', title: 'Les Sédentaires', when: (r) => placing(r) && !!handOf(r, (d) => d.sed),
+    target: (r) => `.hand [data-t="${handOf(r, (d) => d.sed).t}"]`,
+    text: `Une créature <b>Sédentaire</b> reste sur le récif d'une marée à l'autre, jusqu'à la fin de la plongée : elle marque à chaque marée, mais garde son emplacement.` },
+  { id: 'crown', title: 'Les couronnes 💠', target: '.crowns.tl .crown', when: placing,
+    text: `Occupez tous les emplacements d'un corail pour former une <b>couronne complète</b> : +1 Mult. Une pastille pâle signale qu'il ne manque plus qu'une créature.` },
+  { id: 'harmony', title: 'Harmonie et Mosaïque', after: 'crown', target: '.crowns.tl .crown:not(.hint)', when: placing,
+    text: `Une couronne d'une seule famille forme une 🎯 <b>Harmonie</b> : Mult ×2. Toutes de familles différentes, une 🌈 <b>Mosaïque</b> : Mult ×1,5. La famille est l'icône en haut à gauche de chaque carte.` },
+  { id: 'bridge', title: 'Les ponts 🔗', target: '.bridge.half, .bridge.on', when: placing,
+    text: `Le Flanc ➡ d'un corail et le Flanc ⬅ du suivant sont <b>voisins</b>. Posez une créature de chaque côté : le pont s'illumine et les effets de voisinage passent d'un corail à l'autre.` },
+  { id: 'remous', title: 'Le Remous 🌀', target: '[data-action="remous"]', when: (r) => placing(r) && r.dive.tide >= 2 && r.dive.remous > 0,
+    text: `Une main qui ne vous plaît pas ? Le <b>Remous</b> renvoie les créatures choisies dans la pioche et vous en donne autant de nouvelles. Vous n'en avez que quelques-uns par plongée.` },
+  // Entre les plongées
+  { id: 'oxygen', title: 'L’oxygène 🫧', target: '.o2', when: (r) => r.oxygen < r.oxygenMax && r.phase !== 'end',
+    text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête, et rater un gardien y met fin aussitôt. Le comptoir et la nurserie en rendent.` },
+  { id: 'reward', title: 'La récompense', target: '.offer', when: (r) => stage(r, 'creature'),
+    text: `Une plongée réussie rapporte des perles 🦪 (plus encore si vous finissez en avance) et une créature pour votre banc. Sous chaque offre, ce qu'elle apporte : <b>🧠</b> l'un de vos coraux la met en valeur.` },
+  { id: 'map', title: 'La carte', target: '.map-col', when: (r) => r.phase === 'map',
+    text: `Votre route descend de haut en bas, et chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.` },
+  { id: 'guardian', title: 'Le gardien 👑', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
+    text: `Chaque zone se termine par un <b>gardien</b>, annoncé dès maintenant avec sa règle : préparez votre récif en conséquence. Le vaincre fait pousser un nouveau corail.` },
+  { id: 'eco', title: 'Les écosystèmes 🌿', target: '.eco-row', when: (r) => r.phase === 'map' || r.phase === 'draft',
+    text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. <span class="glow">En vert</span>, le bonus est actif. Les offres l'indiquent par 🌿.` },
+  { id: 'elite', title: 'Les plongées périlleuses 💀', target: '.routes [data-type="elite"]', when: (r) => r.phase === 'map',
+    text: `Plus dures, avec une condition imposée, mais elles rapportent un <b>artefact</b> en plus de la récompense habituelle.` },
+  { id: 'artifact', title: 'Les artefacts 🏺', target: '.arts', when: (r) => r.phase === 'map' && r.artifacts.length > 0,
+    text: `Vos <b>artefacts</b> changent les règles pour toute l'expédition. Votre plongeur en apporte un ; les plongées périlleuses, le comptoir et les épaves en donnent d'autres.` },
+  { id: 'shop', title: 'Le comptoir ⚓', target: '.shop-top', when: (r) => r.phase === 'shop',
+    text: `Dépensez vos perles 🦪. Pensez aussi à <b>relâcher</b> une créature : un banc plus fin pioche plus souvent ses meilleures cartes.` },
+  { id: 'event', title: 'Les épaves ❓', target: '.choices', when: (r) => r.phase === 'event' && !r.event.done,
+    text: `Une rencontre et un choix. Certains se paient : <b>survolez</b> une option pour lire ce qu'elle implique.` },
+  { id: 'rest', title: 'La nurserie 🌱', target: '.choices', when: (r) => r.phase === 'rest',
+    text: `Une seule option, à choisir selon votre récif : souffle, créature améliorée ★, corail fortifié, mutation ou fusion de deux créatures identiques.` },
+  { id: 'mutation', title: 'Les mutations 🧬', target: '.artifact.mutation, .c-mut, .bdg.mut', when: () => true,
+    text: `Une <b>mutation</b> se pose sur une créature précise de votre banc et la modifie pour toujours. Survolez-la pour lire son effet.` },
+  { id: 'coral', title: 'Un nouveau corail', target: '.offer', when: (r) => stage(r, 'coral'),
+    text: `Un corail de plus, c'est une couronne de plus à remplir. Votre récif en accueille <b>${BASE.maxCorals} au maximum</b> : au-delà, il faudra en retirer un.` },
+  { id: 'parasite', title: 'Les parasites ☣️', target: '[data-action="bag"]', when: (r) => r.phase === 'map' && r.bag.some((c) => CREATURES[c.t].parasite),
+    text: `Un <b>parasite</b> encombre votre banc et ne rapporte rien. Relâchez-le au comptoir, ou laissez un Orque ou un Labre nettoyeur s'en charger.` },
+];
+
+const tipTarget = (t) => (typeof t.target === 'function' ? t.target(S.run) : t.target);
+// Moment de jeu : une marée de plongée, ou un écran à une étape donnée de la carte.
+function tipMoment(r) {
+  const at = r.pos ? `${r.zone}.${r.pos.row}.${r.pos.lane}` : r.zone;
+  if (r.phase === 'dive') return `${r.seed}:dive:${at}:${r.dive.tide}`;
+  return `${r.seed}:${r.phase}:${at}:${r.draft ? r.draft.picks.length : ''}`;
+}
+function currentTip() {
+  if (!S.run || S.screen !== 'game' || meta.tipsOff || S.tuto) return null;
+  const fresh = S.tipMoment !== tipMoment(S.run);
+  return TIPS.find((t) => !meta.tips.includes(t.id)
+    && (!t.after || meta.tips.includes(t.after))
+    && (fresh || (t.chain && t.after === S.tipLast))
+    && t.when(S.run) && app.querySelector(tipTarget(t))) || null;
+}
+function renderTip() {
+  const t = currentTip();
+  S.tipShown = t && t.id;
+  if (!t) return;
+  overlay({ title: `💡 ${t.title}`, count: `Découverte ${meta.tips.length + 1}/${TIPS.length}`, text: t.text, target: tipTarget(t), kind: 'tip',
+    buttons: '<button class="btn ghost" data-action="tipsoff">Ne plus afficher</button><button class="btn primary" data-action="tipok">Compris</button>' });
+}
+function readTip(id) {
+  if (!meta.tips.includes(id)) meta.tips.push(id);
+  saveMeta();
+}
+
+function placeBubble(sel, fallback) {
   const bubble = app.querySelector('.tuto-bubble');
   const spot = app.querySelector('.tuto-spot');
   const clamp = (v, max) => Math.max(8, Math.min(v, max));
   const w = bubble.offsetWidth; const h = bubble.offsetHeight;
-  const sel = step.target && step.target();
-  // La carte visée n'est peut-être pas en main : on retombe alors sur la main.
-  const el = sel && (app.querySelector(sel) || app.querySelector('.hand'));
+  const el = sel && (app.querySelector(sel) || (fallback && app.querySelector(fallback)));
   let left = (innerWidth - w) / 2; let top = (innerHeight - h) / 2;
-  if (el) {
+  if (!el) app.querySelector('.tuto-block')?.classList.add('dim');
+  else {
     const r = el.getBoundingClientRect();
     spot.hidden = false;
     Object.assign(spot.style, { left: `${r.left - 4}px`, top: `${r.top - 4}px`, width: `${r.width + 8}px`, height: `${r.height + 8}px` });
@@ -945,11 +1018,13 @@ document.addEventListener('scroll', hideHover, true);
 function render() {
   hideHover();
   const r = S.run;
+  if (S.tuto && r) advanceTuto();
   if (S.screen === 'title' || !r) renderTitle();
   else ({ draft: renderDraft, map: renderMap, dive: renderDive, reward: renderReward, shop: renderShop, event: renderEvent, rest: renderRest, end: renderEnd })[r.phase]();
   const m = modalHTML();
   if (m) app.insertAdjacentHTML('beforeend', m);
   else if (S.tuto) renderTuto();
+  else renderTip();
   if (S.anim) { S.anim = false; animateCounts(); }
   trackSeen();
   save();
@@ -1026,12 +1101,19 @@ const handlers = {
   tutonext: () => { S.tuto.i++; },
   tutoend: () => endTuto(),
   // Fin du guidage : l'expédition se poursuit et compte comme une vraie, sur son propre emplacement.
-  tutofree: () => { S.tuto = null; lastBosses = 0; meta.runs++; saveMeta(); },
+  // Les Découvertes prennent le relais, après la prochaine action du joueur.
+  tutofree: () => {
+    S.tuto = null; lastBosses = 0; meta.runs++;
+    for (const id of TUTO_COVERS) readTip(id);
+    S.tipMoment = tipMoment(S.run); S.tipLast = null;
+  },
   totitle: () => { S.screen = 'title'; S.run = null; },
+  tipok: () => { readTip(S.tipShown); S.tipLast = S.tipShown; S.tipMoment = tipMoment(S.run); },
+  tipsoff: () => { meta.tipsOff = true; saveMeta(); },
+  tipstoggle: () => { meta.tipsOff = !meta.tipsOff; saveMeta(); },
 
   node: (el) => {
     E.enterNode(S.run, +el.dataset.row, +el.dataset.lane);
-    if (S.tuto && S.run.phase === 'dive') E.tutorialHand(S.run);
     resetUI();
   },
   leave: () => E.backToMap(S.run),
