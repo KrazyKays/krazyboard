@@ -860,6 +860,16 @@ export function chooseMutation(run, m) {
 export function applyPick(run, id) {
   const p = run.pending;
   if (!p) return false;
+  if (p.purpose === 'reorder') {
+    // Premier clic : on saisit un corail. Second clic : on l'échange avec celui-ci.
+    const i = run.corals.findIndex((k) => k.id === id);
+    if (i < 0) return false;
+    if (p.sel == null || p.sel === id) { p.sel = p.sel === id ? null : id; return true; }
+    const j = run.corals.findIndex((k) => k.id === p.sel);
+    [run.corals[i], run.corals[j]] = [run.corals[j], run.corals[i]];
+    p.sel = null;
+    return true;
+  }
   if (p.purpose === 'fortify') {
     const c = run.corals.find((k) => k.id === id);
     if (!c) return false;
@@ -899,12 +909,16 @@ export function applyPick(run, id) {
       run.toast = `${def.emoji} ${def.name} devient ${MUTATIONS[p.mut].emoji} ${MUTATIONS[p.mut].name} : ${MUTATIONS[p.mut].text}`;
     } else if (p.purpose === 'merge') {
       if (run.bag.length <= 6) return false;
-      const other = run.bag.filter((o) => o !== c && o.t === c.t).sort((a, b) => b.bonus - a.bonus)[0];
-      c.bonus += other.bonus + def.pts;
-      c.mbonus += other.mbonus + 1;
-      c.star = Math.max(c.star, other.star) + 1;
-      c.xp = Math.max(c.xp, other.xp);
-      c.mut = c.mut || other.mut;
+      // Premier clic : on choisit la créature qui reçoit la fusion. Second clic : son double.
+      if (p.sel == null || p.sel === id) { p.sel = p.sel === id ? null : id; return true; }
+      const base = inst(run, p.sel);
+      const other = c;
+      if (!base || other.t !== base.t) return false;
+      base.bonus += other.bonus + def.pts;
+      base.mbonus += other.mbonus + 1;
+      base.star = Math.max(base.star, other.star) + 1;
+      base.xp = Math.max(base.xp, other.xp);
+      base.mut = base.mut || other.mut;
       run.bag = run.bag.filter((o) => o !== other);
       run.toast = `${def.emoji} ${def.name} : fusion ★ ! Éclat additionné et +1 Mult permanent.`;
     }
@@ -1029,6 +1043,24 @@ export const EVENTS = {
       { label: 'Libérer une créature rare', text: 'Une créature rare, mais un Filet fantôme rejoint votre banc',
         act: (r) => { const pool = Object.keys(CREATURES).filter((k) => CREATURES[k].rar === 'r'); const t = pick(r, pool); addCreature(r, t); addCreature(r, 'filet_fantome'); return `${CREATURES[t].emoji} ${CREATURES[t].name} vous rejoint, encore empêtré dans son filet.`; } },
       { label: 'Ne touchez à rien', text: '', act: () => 'Vous passez votre chemin.' },
+    ],
+  },
+  courant: {
+    title: 'Le courant de fond', emoji: '🌀',
+    text: 'Un puissant courant balaie le fond et soulève le sable. Vos coraux, à peine enracinés, pourraient changer de place.',
+    choices: [
+      { label: 'Guider le courant', text: 'Réorganisez librement l’ordre de vos coraux', ok: (r) => r.corals.length >= 2,
+        act: (r) => { r.pending = { purpose: 'reorder', sel: null, then: 'map' }; return null; } },
+      { label: 'Laisser faire le courant', text: '+8 perles, mais vos coraux sont mélangés au hasard', ok: (r) => r.corals.length >= 2,
+        act: (r) => {
+          for (let i = r.corals.length - 1; i > 0; i--) {
+            const j = Math.floor(rnd(r) * (i + 1));
+            [r.corals[i], r.corals[j]] = [r.corals[j], r.corals[i]];
+          }
+          r.pearls += 8;
+          return `Le sable retombe. Votre récif : ${r.corals.map((c) => CORALS[c.t].emoji).join(' ')}. (+8 perles)`;
+        } },
+      { label: 'S’agripper au rocher', text: '', act: () => 'Le courant passe sans rien déranger.' },
     ],
   },
   source: {

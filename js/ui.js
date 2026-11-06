@@ -134,7 +134,7 @@ function coralCard(t, o = {}) {
   const act = o.action ? `data-action="${o.action}" data-id="${o.id ?? t}"` : '';
   const lvl = o.lvl ? ` <span class="star">+${o.lvl}</span>` : '';
   const hover = o.mini ? 'data-zoom' : `data-zoom data-gloss="k|${t}"`;
-  return `<div class="card coral-card r-${k.rar} ${o.pick ? 'pick' : ''} ${o.mini ? 'mini' : ''}" ${act} style="--fam:${k.color}" ${hover}>
+  return `<div class="card coral-card r-${k.rar} ${o.pick ? 'pick' : ''} ${o.mini ? 'mini' : ''} ${o.sel ? 'sel' : ''}" ${act} style="--fam:${k.color}" ${hover}>
     ${o.mini ? zoomTpl(coralCard(t, { lvl: o.lvl })) : ''}<div class="c-top"><span class="c-fam">${CARD_TYPES.coral.icon}</span><span class="c-type">${CARD_TYPES.coral.name}</span><span class="c-pts mult" data-tip="Mult de base">×${k.mult + (o.lvl || 0)}</span></div>
     <div class="c-em">${k.emoji}</div>
     <div class="c-nm">${k.name}${lvl}</div>
@@ -599,6 +599,14 @@ function modalHTML() {
         <h2>🧬 Choisissez une mutation</h2>
         <div class="mut-list">${p.options.map((m) => mutationCard(m, `<button class="btn primary" data-action="mutchoice" data-m="${m}">Choisir</button>`)).join('')}</div></div></div>`;
     }
+    if (p.purpose === 'reorder') {
+      return `<div class="modal-bg"><div class="modal wide coral-drop">
+        <h2>🌀 Réorganisez votre récif</h2>
+        <p class="muted">${p.sel == null ? 'Choisissez un corail, puis celui avec lequel l’échanger.' : 'Choisissez le corail avec lequel l’échanger.'} De gauche à droite, chaque corail touche ses voisins par ses Flancs.</p>
+        <div class="offer">${r.corals.map((c) => `<div class="offer-item">${coralCard(c.t, { action: 'pick', id: c.id, lvl: c.lvl, pick: true, sel: c.id === p.sel })}</div>`).join('')}</div>
+        <button class="btn primary" data-action="reorderdone">Terminer</button>
+      </div></div>`;
+    }
     if (p.purpose === 'dropcoral') {
       return `<div class="modal-bg"><div class="modal wide coral-drop">
         <h2>🪸 Récif plein : quel corail retirer ?</h2>
@@ -608,13 +616,18 @@ function modalHTML() {
     }
     const titles = { remove: 'Relâcher une créature', sell: 'Céder une créature aux pêcheurs', upgrade: 'Faire grandir une créature ★', duplicate: 'Dupliquer une créature', fortify: 'Fortifier un corail',
       merge: 'Fusionner deux créatures identiques ★', mutate: p.mut ? `${MUTATIONS[p.mut].emoji} ${MUTATIONS[p.mut].name} : à quelle créature ?` : '' };
-    const eligible = r.bag.filter((c) => E.pickable(r, c, p.purpose));
+    // Fusion : une fois la première créature choisie, seuls ses doubles restent proposés.
+    const mergeBase = p.purpose === 'merge' && p.sel != null ? r.bag.find((c) => c.id === p.sel) : null;
+    const eligible = r.bag.filter((c) => E.pickable(r, c, p.purpose) && (!mergeBase || c.t === mergeBase.t));
     let items;
     const pickItem = (c) => {
       const ex = p.purpose === 'upgrade' ? `<div class="up">+${E.upgradeAmount(r, c)}</div>`
-        : p.purpose === 'mutate' && c.mut ? `<div class="up">remplace ${MUTATIONS[c.mut].name}</div>` : '';
-      return `<div class="offer-item">${creatureCard(c, { action: 'pick', pick: true, mini: true })}${ex}</div>`;
+        : p.purpose === 'mutate' && c.mut ? `<div class="up">remplace ${MUTATIONS[c.mut].name}</div>`
+        : mergeBase && c === mergeBase ? '<div class="up">Choisie</div>' : '';
+      return `<div class="offer-item">${creatureCard(c, { action: 'pick', pick: true, mini: true, sel: c === mergeBase })}${ex}</div>`;
     };
+    const hint = p.purpose === 'merge'
+      ? `<p class="muted">${mergeBase ? 'Choisissez maintenant son double (cliquez de nouveau sur la première pour changer).' : 'Choisissez la première créature à fusionner.'}</p>` : '';
     const sorted = [...eligible].sort(bySpecies);
     if (p.purpose === 'fortify') {
       items = r.corals.map((c) => coralCard(c.t, { action: 'pick', id: c.id, lvl: c.lvl, pick: true, mini: true })).join('');
@@ -629,6 +642,7 @@ function modalHTML() {
       : `<div class="coll" style="${collGrid(p.purpose === 'fortify' ? r.corals.length : eligible.length, 130)}">${items}</div>`;
     return `<div class="modal-bg"><div class="modal wide">
       <h2>${titles[p.purpose]}${p.cost ? ` · ⚪ ${p.cost}` : ''}</h2>
+      ${hint}
       ${list}
       ${p.cancel ? '<button class="btn" data-action="pickcancel">Annuler</button>' : ''}</div></div>`;
   }
@@ -1191,6 +1205,7 @@ const handlers = {
   shopremove: () => { S.run.pending = { purpose: 'remove', cost: S.run.removeCost, then: null, cancel: true }; },
   pick: (el) => E.applyPick(S.run, +el.dataset.id),
   pickcancel: () => { S.run.pending = null; },
+  reorderdone: () => { S.run.toast = '🌀 Votre récif est réorganisé.'; E.backToMap(S.run); },
   evchoice: (el) => E.eventChoose(S.run, +el.dataset.i),
   rest: (el) => E.restChoose(S.run, el.dataset.w),
 };

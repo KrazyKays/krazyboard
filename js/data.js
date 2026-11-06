@@ -96,10 +96,11 @@ export const CREATURES = {
   poulpe: { name: 'Poulpe', emoji: '🐙', fam: 'mollusque', pts: 2, rar: 'c',
     text: 'Pose : piochez 1 créature.', place: { draw: 1 } },
   nudi: { name: 'Nudibranche', emoji: '🐌', fam: 'mollusque', pts: 2, rar: 'c',
-    text: 'Au moins 2 voisins, tous de familles différentes : +3 Mult.',
+    text: 'Au moins 2 voisins, d’au moins 2 familles différentes : +3 Mult.',
     mult: (x) => {
-      if (x.nbs.length < 2 || x.nbs.some((n) => n.allFam)) return x.nbs.length >= 2 ? 3 : 0;
-      return new Set(x.nbs.map((n) => n.def.fam)).size === x.nbs.length ? 3 : 0;
+      if (x.nbs.length < 2) return 0;
+      if (x.nbs.some((n) => n.allFam)) return 3;
+      return new Set(x.nbs.map((n) => n.def.fam)).size >= 2 ? 3 : 0;
     } },
   huitre: { name: 'Huître perlière', emoji: '🦪', fam: 'mollusque', pts: 1, rar: 'u',
     text: 'Après la marée : +2 perles.',
