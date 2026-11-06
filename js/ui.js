@@ -428,13 +428,15 @@ function renderDraft() {
   app.innerHTML = `<div class="screen">${topbar()}<div class="between draft">
     <h2>🎒 Préparez votre expédition · choix ${round}/${BASE.draftRounds}</h2>
     <p class="ev-tx">${intro}</p>
-    <div class="draft-kit">
-      <div><h3>Vos coraux</h3><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
-      <div><h3>Votre banc · ${r.bag.length} créatures</h3><div class="bag-chips">${bag}</div>
-        <h3 class="eco-h">Écosystèmes</h3><div class="eco-row">${ecoChips(r)}</div></div>
+    <div class="draft-board">
+      <div class="draft-kit">
+        <div><h3>Vos coraux</h3><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
+        <div><h3>Votre banc · ${r.bag.length} créatures</h3><div class="bag-chips">${bag}</div>
+          <h3 class="eco-h">Écosystèmes</h3><div class="eco-row">${ecoChips(r)}</div></div>
+      </div>
+      <h3>Choisissez une créature</h3>
+      <div class="offer">${dr.options.map(offer).join('')}</div>
     </div>
-    <h3>Choisissez une créature</h3>
-    <div class="offer">${dr.options.map(offer).join('')}</div>
   </div></div>`;
 }
 
@@ -759,17 +761,11 @@ function renderTuto() {
 const placing = (r) => r.phase === 'dive' && r.dive.phase === 'place';
 const stage = (r, kind) => r.phase === 'reward' && r.reward.stages[0]?.kind === kind;
 const handOf = (r, f) => r.dive.hand.map((id) => E.inst(r, id)).find((c) => f(CREATURES[c.t]));
-// L'indice sous une offre reprend l'emoji du corail qui la met en valeur : on montre ceux du joueur.
-const likedHint = (r) => {
-  const icons = [...new Set(r.corals.map((c) => CORALS[c.t]).filter((k) => k.likes?.length).map((k) => k.emoji))];
-  return icons.length
-    ? `Sous chaque offre, l'icône <b>${icons.join('</b> ou <b>')}</b> signale que l'un de vos coraux la met en valeur.`
-    : `Sous chaque offre, un indice : l'icône d'un de vos coraux signale qu'il la met en valeur.`;
-};
+const likedHint = `Sous une offre, l'icône d'un de vos coraux signale qu'il la met en valeur.`;
 const TIPS = [
   // Préparation (vraie expédition)
-  { id: 'draft', title: 'Préparer son expédition', target: '.draft-kit', when: (r) => r.phase === 'draft',
-    text: (r) => `Le hasard vous donne 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets, puis gardez 1 créature sur 3, trois fois. ${likedHint(r)}` },
+  { id: 'draft', title: 'Préparer son expédition', target: '.draft-board', when: (r) => r.phase === 'draft',
+    text: `En haut, ce que le hasard vous donne : 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets. En bas, choisissez la créature qui les complète le mieux, trois fois de suite. ${likedHint}` },
   // Plongée : ce qui prolonge le cœur du jeu
   { id: 'cond', title: 'Les conditions', target: '.conds .cond', when: (r) => r.phase === 'dive' && r.dive.cond.length > 0,
     text: `Cette plongée ajoute une règle, rappelée ici : <b>survolez-la</b>. Les plongées périlleuses et les gardiens en ont toujours.` },
@@ -792,7 +788,7 @@ const TIPS = [
   { id: 'oxygen', title: 'L’oxygène 🫧', target: '.o2', when: (r) => r.oxygen < r.oxygenMax && r.phase !== 'end',
     text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête, et rater un gardien y met fin aussitôt. Le comptoir et la nurserie en rendent.` },
   { id: 'reward', title: 'La récompense', target: '.offer', when: (r) => stage(r, 'creature'),
-    text: (r) => `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${likedHint(r)}` },
+    text: `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${likedHint}` },
   { id: 'map', title: 'La carte', target: '.map-col', when: (r) => r.phase === 'map',
     text: `Votre route descend de haut en bas, et chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.` },
   { id: 'guardian', title: 'Le gardien 🛡️', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
@@ -856,8 +852,11 @@ function placeBubble(sel, fallback) {
     const r = el.getBoundingClientRect();
     spot.hidden = false;
     Object.assign(spot.style, { left: `${r.left - 4}px`, top: `${r.top - 4}px`, width: `${r.width + 8}px`, height: `${r.height + 8}px` });
-    if (r.width + w + 24 < innerWidth && r.height > innerHeight * 0.6) { // grande cible : à côté
-      left = r.right + 12 + w < innerWidth ? r.right + 12 : r.left - w - 12;
+    // Grande cible, ou pas la place au-dessus ni en dessous : la bulle se met à côté, sans la couvrir.
+    const roomV = Math.max(innerHeight - r.bottom, r.top) >= h + 20;
+    const roomR = innerWidth - r.right >= w + 20; const roomL = r.left >= w + 20;
+    if ((roomR || roomL) && (!roomV || r.height > innerHeight * 0.6)) {
+      left = roomR ? r.right + 12 : r.left - w - 12;
       top = r.top + (r.height - h) / 2;
     } else {
       left = r.left + r.width / 2 - w / 2;

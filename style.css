@@ -292,6 +292,7 @@ body.dragging .card[data-action]:hover { transform: none; }
 .eco.on { color: var(--ink); background: rgba(62,230,193,.18); border-color: var(--accent); font-weight: 700; }
 
 /* Draft de départ */
+.draft-board { display: flex; flex-direction: column; align-items: center; gap: clamp(4px, 1.2vh, 12px); max-width: 100%; }
 .draft-kit { display: flex; gap: 28px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
 .draft-kit > div { display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .draft-kit .mini-corals { justify-content: center; }
