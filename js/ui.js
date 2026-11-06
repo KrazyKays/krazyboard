@@ -312,7 +312,7 @@ function renderDive() {
       const F = FAMILIES[def.fam];
       const badges = [bk.silenced && '<span class="bdg sil" data-tip="Réduit au silence : ne marque rien à cette marée">🔇</span>', bk.times > 1 && '<span class="bdg x2">×2</span>',
         bk.mult || bk.xm > 1 ? `<span class="bdg mul ${bk.mult < 0 ? 'neg' : ''}">${[bk.mult > 0 ? `+${bk.mult}M` : bk.mult < 0 ? `−${-bk.mult}M` : '', bk.xm > 1 ? `×${bk.xm}M` : ''].filter(Boolean).join(' ')}</span>` : '', c.mut && `<span class="bdg mut" data-tip="${esc(`${MUTATIONS[c.mut].name} — ${MUTATIONS[c.mut].text}`)}">${MUTATIONS[c.mut].emoji}</span>`, cell.lock && '<span class="bdg lock" data-tip="Ne peut plus être déplacé">🔒</span>'].filter(Boolean).join('');
-      const can = placing && !cell.lock;
+      const can = placing && !cell.lock && !tutoForce();
       return `<div class="slot s-${s} full ${can ? 'movable' : ''} ${bridged(ci, s) ? 'bridged' : ''}" style="--fam:${F.color}" ${can ? `data-action="unplace" data-ci="${ci}" data-s="${s}"` : ''} data-zoom>
         ${zoomTpl(creatureCard(c))}<span class="em">${def.emoji}</span><span class="nm">${def.name}${c.star ? ' ★' : ''}</span>
         <span class="pts ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35}s">${fmt(bk.pts || 0)}</span>${badges}</div>`;
@@ -321,7 +321,7 @@ function renderDive() {
       const kr = d.blocked.includes(key);
       return `<div class="slot s-${s} blocked" data-tip="${kr ? 'Bloqué par le Kraken pour cette marée' : 'Emplacement inexistant sur ce corail'}">${kr ? '🦑' : '✖'}</div>`;
     }
-    const t = placing && sel && E.canPlace(r, sel, ci, s);
+    const t = placing && sel && E.canPlace(r, sel, ci, s) && tutoAllows(ci, s);
     return `<div class="slot s-${s} ${t ? 'target' : ''} ${bridged(ci, s) ? 'bridged' : ''}" data-ci="${ci}" data-s="${s}" ${t ? 'data-action="place"' : ''}>
       <span class="ph">${SLOT_ICON[s]}</span><span class="lb">${SLOT_LABEL[s]}${bridged(ci, s) ? ' 🔗' : ''}</span></div>`;
   };
@@ -374,10 +374,12 @@ function renderDive() {
   }
 
   // Main
+  const force = tutoForce();
   const hand = d.hand.map((id) => {
     const c = E.inst(r, id);
     const chosen = ui.remous && ui.rsel.includes(id);
-    return creatureCard(c, { action: placing ? 'hand' : '', sel: !ui.remous && sel === id, pick: ui.remous, chosen });
+    const locked = !!force && c.t !== force.t;
+    return creatureCard(c, { action: placing && !locked ? 'hand' : '', sel: !ui.remous && sel === id, pick: ui.remous, chosen, dim: locked });
   }).join('');
   const peek = E.has(r, 'lampe') && d.draw.length
     ? `<div class="peek">🔦 Prochaines : ${d.draw.slice(0, 3).map((id) => `<span data-tip="${esc(CREATURES[E.inst(r, id).t].name)}">${CREATURES[E.inst(r, id).t].emoji}</span>`).join(' ')}</div>` : '';
@@ -680,28 +682,38 @@ const TUTO = [
     text: () => `Une plongée, c'est un <b>objectif de points</b> à atteindre en 4 <b>marées</b> 🌊. La barre se remplit à chaque marée.` },
   { target: () => '.hand', title: 'Vos créatures',
     text: () => `Voici votre main, piochée dans votre banc. Chaque créature a un <b>Éclat</b>, la pastille en haut à droite : ce qu'elle rapporte une fois posée.` },
-  { title: 'Posez une créature',
-    target: () => (S.ui.sel ? '.reef' : '.hand [data-t="sardine"]'),
+  { title: 'Posez une créature', force: { t: 'sardine', ci: 0, s: 'N' },
     text: () => (S.ui.sel
-      ? `Cliquez sur un emplacement <span class="glow">en surbrillance</span> autour d'un corail, par exemple la <b>Surface ⬆</b> du premier.`
-      : `Cliquez sur les <b>Sardines</b>, ou faites-les glisser vers le récif.`),
-    done: () => E.boardCount(S.run) >= 1 },
+      ? `Posez-la sur la <b>Surface ⬆</b> de l'Anémone, l'emplacement <span class="glow">en surbrillance</span>. L'Anémone donne +3 Éclat aux Poissons posés dessus.`
+      : `Cliquez sur une <b>Sardine</b>, ou faites-la glisser vers la <b>Surface ⬆</b> de l'Anémone.`) },
   { target: () => '.formula', title: 'Éclat × Mult',
     text: () => `Chaque corail marque l'<span style="color:var(--accent2)"><b>Éclat</b></span> des créatures posées autour de lui, multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Certaines créatures, comme la Méduse, augmentent le Mult : c'est là que naissent les gros scores.` },
-  { title: 'Les voisins',
-    target: () => (S.ui.sel ? '.reef' : '.hand [data-t="crevette"]'),
+  { title: 'Les voisins', force: { t: 'sardine', ci: 0, s: 'W' },
     text: () => (S.ui.sel
-      ? `Posez-la sur un <b>Flanc ⬅ ➡</b> du même corail, à côté des Sardines. Une erreur ? Recliquez sur une créature posée pour la reprendre.`
-      : `Les créatures qui se touchent s'entraident. La <b>Crevette nettoyeuse</b> donne +3 Éclat à ses voisines : cliquez dessus.`),
-    done: () => E.boardCount(S.run) >= 2 },
+      ? `Posez-la sur le <b>Flanc ⬅</b>, juste à côté de la première : les deux Sardines se touchent.`
+      : `Les créatures qui se touchent s'entraident. Une Sardine gagne <b>+2 Éclat par Sardine voisine</b> : prenez la deuxième Sardine de votre main.`) },
+  { title: 'La Crevette nettoyeuse', force: { t: 'crevette', ci: 0, s: 'E' },
+    text: () => (S.ui.sel
+      ? `Posez-la sur le <b>Flanc ➡</b> : elle touche la Sardine de la Surface. Ce Flanc a <b>3 voisins</b> : la Surface ⬆, le Fond ⬇ et, grâce au pont 🔗, le Flanc ⬅ du Corail bulle. Le meilleur endroit pour une créature qui aide ses voisines !`
+      : `La <b>Crevette nettoyeuse</b> donne +3 Éclat à chacune de ses voisines : cliquez dessus.`) },
   { title: 'Lancez la marée', launch: true, target: () => '[data-action="launch"]',
-    text: () => `Posez d'autres créatures si vous le voulez : plus le récif est rempli, plus la marée rapporte. Puis cliquez sur <b>Lancer la marée</b>.`,
+    text: () => `Posez d'autres créatures si vous le voulez : plus le récif est rempli, plus la marée rapporte. Une erreur ? Recliquez sur une créature posée pour la reprendre. Puis cliquez sur <b>Lancer la marée</b>.`,
     done: () => dive().phase === 'scored' },
   { title: 'Vous savez jouer !', final: true, target: () => '.actionbar',
     text: () => `Les points s'ajoutent à votre score. Les créatures posées partent à la défausse, celles restées en main sont gardées pour la marée suivante.<br>Finissez cette plongée : le reste du jeu vous sera présenté pas à pas, au moment où vous le rencontrerez 💡.` },
 ];
+// `force` : pose imposée ; l'étape attend cette créature à cet emplacement, rien d'autre
+// n'est jouable (ni autre carte, ni autre case, ni reprise d'une créature posée).
+for (const step of TUTO) {
+  const f = step.force;
+  if (!f) continue;
+  step.target = () => (S.ui.sel ? `.slot[data-ci="${f.ci}"][data-s="${f.s}"]` : `.hand [data-t="${f.t}"]`);
+  step.done = () => !!dive().board[f.ci][f.s];
+}
+const tutoForce = () => (S.tuto && TUTO[S.tuto.i].force) || null;
+const tutoAllows = (ci, s) => { const f = tutoForce(); return !f || (f.ci === ci && f.s === s); };
 // Ce que le tutoriel a déjà expliqué : ces Découvertes sont considérées comme lues.
-const TUTO_COVERS = ['aftertide'];
+const TUTO_COVERS = ['aftertide', 'bridge'];
 
 function startTuto() {
   S.run = E.tutorialRun();
@@ -1128,6 +1140,7 @@ const handlers = {
     S.ui.sel = S.ui.sel === id ? null : id;
   },
   place: (el) => {
+    if (!tutoAllows(+el.dataset.ci, el.dataset.s)) return;
     const notes = E.place(S.run, S.ui.sel, +el.dataset.ci, el.dataset.s);
     S.run.toast = notes && notes.length ? notes.join(' · ') : null;
     S.ui.sel = null;
@@ -1179,7 +1192,9 @@ function startDrag() {
   d.mark.id = 'drop-mark';
   d.mark.hidden = true;
   document.body.append(d.ghost, d.mark);
-  for (const s of app.querySelectorAll('.slot:not(.full):not(.blocked)')) s.classList.add('target');
+  for (const s of app.querySelectorAll('.slot:not(.full):not(.blocked)')) {
+    if (tutoAllows(+s.dataset.ci, s.dataset.s)) s.classList.add('target');
+  }
   for (const s of app.querySelectorAll('.slot.movable')) if (s !== d.el) s.classList.add('swap');
 }
 
@@ -1231,6 +1246,7 @@ function endDrag() {
 function commitDrop(d) {
   const r = S.run;
   const handPos = r.dive.hand.indexOf(d.id);
+  if (d.drop.s && !tutoAllows(d.drop.ci, d.drop.s)) return;
   if (d.from) E.unplace(r, d.from.ci, d.from.s);
   if (d.drop.s) {
     // Emplacement occupé : l'occupant prend la place que quitte la créature déposée.

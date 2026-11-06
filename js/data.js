@@ -53,8 +53,8 @@ const nbFam = (x, f) => x.nbs.filter((n) => fam(n, f)).length;
 
 export const CREATURES = {
   // ── Poissons ──
-  sardine: { name: 'Sardines', emoji: '🐟', fam: 'poisson', pts: 2, rar: 'c',
-    text: '+2 Éclat par Sardines voisines.',
+  sardine: { name: 'Sardine', emoji: '🐟', fam: 'poisson', pts: 2, rar: 'c',
+    text: '+2 Éclat par Sardine voisine.',
     eclat: (x) => 2 * x.nbs.filter((n) => n.t === 'sardine').length },
   clown: { name: 'Poisson-clown', emoji: '🐠', fam: 'poisson', pts: 3, rar: 'c',
     text: '+6 Éclat sur une Anémone.',

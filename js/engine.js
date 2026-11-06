@@ -190,12 +190,15 @@ export function offerHints(run, t) {
 // Expédition du tutoriel : graine et départ fixés, sans préparation. Elle s'ouvre
 // directement sur la première plongée : le tutoriel n'enseigne que le cœur du jeu,
 // le reste se découvre ensuite, une mécanique à la fois (voir les Découvertes de l'UI).
+// Ni artefact ni écosystème actif : chaque famille du banc reste sous son premier palier
+// (3 Poissons sur 4, 2 Crustacés sur 4, 2 Cnidaires et 2 Mollusques sur 3, 1 du reste).
 export function tutorialRun() {
   const run = newRun({ seed: 2024, kit: {
-    corals: ['cerveau', 'gorgone'],
-    bag: ['sardine', 'sardine', 'sardine', 'crevette', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'globe', 'loutre', 'nautile'],
+    corals: ['anemone', 'bulle'],
+    bag: ['sardine', 'sardine', 'sardine', 'crevette', 'crabe', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'loutre', 'etoile'],
   } });
   run.tutorial = true;
+  run.artifacts = [];
   const first = run.map.rows[0].find(Boolean);
   enterNode(run, first.row, first.lane);
   tutorialHand(run);
@@ -207,7 +210,7 @@ function tutorialHand(run) {
   const d = run.dive;
   const pool = [...d.hand, ...d.draw];
   const take = (t) => pool.splice(pool.findIndex((id) => inst(run, id).t === t), 1)[0];
-  d.hand = ['sardine', 'crevette', 'meduse', 'sardine', 'tortue', 'globe', 'loutre'].map(take);
+  d.hand = ['sardine', 'crevette', 'meduse', 'sardine', 'tortue', 'etoile', 'loutre'].map(take);
   d.draw = pool;
 }
 
@@ -933,7 +936,7 @@ export const EVENTS = {
     title: 'Le grand banc', emoji: '🐟',
     text: 'Un banc de sardines tourbillonne autour de vous, si dense qu’il masque la lumière.',
     choices: [
-      { label: 'Nager avec le banc', text: '+2 Sardines', act: (r) => { addCreature(r, 'sardine'); addCreature(r, 'sardine'); return 'Deux petits groupes décident de vous suivre.'; } },
+      { label: 'Nager avec le banc', text: '+2 Sardines', act: (r) => { addCreature(r, 'sardine'); addCreature(r, 'sardine'); return 'Deux sardines décident de vous suivre.'; } },
       { label: 'Disperser le banc', text: '+5 perles', act: (r) => { r.pearls += 5; return 'Au milieu du tourbillon, vous ramassez quelques perles.'; } },
     ],
   },
