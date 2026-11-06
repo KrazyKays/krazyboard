@@ -102,7 +102,7 @@ function creatureCard(c, o = {}) {
   const hatch = def.evolve && c.xp ? ` (${c.xp}/${def.evolve.after})` : '';
   const hover = o.mini ? 'data-zoom' : `data-zoom data-gloss="${['c', c.t, c.bonus || 0, c.mbonus || 0, c.star || 0, c.xp || 0, c.mut || ''].join('|')}"`;
   return `<div class="${cls}" ${act} data-t="${c.t}" style="--fam:${F.color}" ${hover}>
-    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🌈' : F.icon}</span><span class="c-type">${CARD_TYPES.creature.name}</span>${M ? `<span class="c-mut" data-tip="${esc(`${M.name} — ${M.text}`)}">${M.emoji}</span>` : ''}<span class="c-nums">${c.mbonus ? `<span class="c-pts mult" data-tip="Mult permanent">+${c.mbonus}M</span>` : ''}<span class="c-pts" data-tip="Éclat de base">${pts}</span></span></div>
+    ${o.mini ? zoomTpl(creatureCard(c)) : ''}<div class="c-top"><span class="c-fam">${def.allFam ? '🎨' : F.icon}</span><span class="c-type">${CARD_TYPES.creature.name}</span>${M ? `<span class="c-mut" data-tip="${esc(`${M.name} — ${M.text}`)}">${M.emoji}</span>` : ''}<span class="c-nums">${c.mbonus ? `<span class="c-pts mult" data-tip="Mult permanent">+${c.mbonus}M</span>` : ''}<span class="c-pts" data-tip="Éclat de base">${pts}</span></span></div>
     <div class="c-em">${def.emoji}</div>
     <div class="c-nm">${def.name}${stars}</div>
     <div class="c-tx">${def.text}${hatch}${M ? `<div class="c-mutx">${M.emoji} <b>${M.name}</b> : ${M.text}</div>` : ''}</div>
@@ -155,7 +155,7 @@ function topbar(extra = '') {
   const z = ZONES[r.zone];
   return `<header class="topbar">
     <div class="tb-l"><b>${z.name}</b> <span class="muted">${z.depth}${r.depth ? ` · ${DEPTHS[r.depth].name}` : ''}${r.daily ? ' · Plongée du jour' : ''}</span>${extra}</div>
-    <div class="tb-c">${oxygen(r)} <span class="pearls" data-tip="Perles">🦪 ${r.pearls}</span></div>
+    <div class="tb-c">${oxygen(r)} <span class="pearls" data-tip="Perles">⚪ ${r.pearls}</span></div>
     <div class="tb-r"><span class="arts">${r.artifacts.map(artifactChip).join('')}</span>
       <button class="btn tiny" data-action="bag">Banc (${r.bag.length})</button>
       <button class="btn tiny" data-action="rules">?</button>
@@ -236,7 +236,7 @@ function renderMap() {
     const cur = r.pos && r.pos.row === n.row && r.pos.lane === n.lane;
     const cls = ['node', `t-${n.type}`, isAv && 'av', n.done && 'done', cur && 'cur'].filter(Boolean).join(' ');
     const tip = [`${T.name} — ${T.text}`, ...(n.cond || []).map((k) => `${CONDITIONS[k].emoji} ${CONDITIONS[k].name} : ${CONDITIONS[k].text}`),
-      ...(['dive', 'elite', 'boss'].includes(n.type) ? [`🎯 Objectif : ${fmt(E.targetFor(r, n))}`] : [])].join(' | ');
+      ...(['dive', 'elite', 'boss'].includes(n.type) ? [`🏁 Objectif : ${fmt(E.targetFor(r, n))}`] : [])].join(' | ');
     const rad = n.type === 'boss' ? 28 : 21;
     nodes += `<g class="${cls}" data-tip="${esc(tip)}" ${isAv ? `data-action="node" data-row="${n.row}" data-lane="${n.lane}"` : ''}>
       <circle cx="${X(n.lane)}" cy="${Y(n.row)}" r="${rad}"/>
@@ -258,7 +258,7 @@ function renderMap() {
         <h3>Choisissez votre route</h3>
         <div class="routes">${next || '<div class="muted">—</div>'}</div>
         <div class="boss-card">
-          <div class="bc-h">👑 Gardien de la zone · objectif ${fmt(E.targetFor(r, boss))}</div>
+          <div class="bc-h">🛡️ Gardien de la zone · objectif ${fmt(E.targetFor(r, boss))}</div>
           ${boss.cond.map((k) => `<div class="bc-c" ${glossText(CONDITIONS[k].text)}><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
           <div class="muted">Rater le gardien met fin à l’expédition. Le vaincre : nouveau corail et oxygène rechargé.</div>
         </div>
@@ -277,7 +277,7 @@ function renderDive() {
   const placing = d.phase === 'place';
   const info = placing ? E.scoreTide(r) : d.last;
   const node = E.nodeAt(r, r.pos.row, r.pos.lane);
-  const title = d.type === 'boss' ? '👑 Gardien' : d.type === 'elite' ? '💀 Plongée périlleuse' : '🐟 Plongée';
+  const title = d.type === 'boss' ? '🛡️ Gardien' : d.type === 'elite' ? '💀 Plongée périlleuse' : '🐟 Plongée';
 
   // HUD
   const pct = Math.min(100, (d.score / d.target) * 100);
@@ -319,7 +319,7 @@ function renderDive() {
     }
     if (E.isBlocked(r, ci, s)) {
       const kr = d.blocked.includes(key);
-      return `<div class="slot s-${s} blocked" data-tip="${kr ? 'Bloqué par le Kraken pour cette marée' : 'Emplacement inexistant sur ce corail'}">${kr ? '🦑' : '✖'}</div>`;
+      return `<div class="slot s-${s} blocked" data-tip="${kr ? 'Bloqué par le Kraken pour cette marée' : 'Emplacement inexistant sur ce corail'}">${kr ? '🪢' : '✖'}</div>`;
     }
     const t = placing && sel && E.canPlace(r, sel, ci, s) && tutoAllows(ci, s);
     return `<div class="slot s-${s} ${t ? 'target' : ''} ${bridged(ci, s) ? 'bridged' : ''}" data-ci="${ci}" data-s="${s}" ${t ? 'data-action="place"' : ''}>
@@ -393,8 +393,8 @@ function renderDive() {
 // ── Récompense ──────────────────────────────────────────────
 function renderReward() {
   const r = S.run; const rw = r.reward; const st = rw.stages[0];
-  const head = `<h2>${rw.type === 'boss' ? '👑 Gardien vaincu !' : '🎉 Plongée réussie !'}</h2>
-    <p>Score <b>${fmt(rw.score)}</b> / ${fmt(rw.target)} — <b>🦪 +${rw.pearls} perles</b>
+  const head = `<h2>${rw.type === 'boss' ? '🛡️ Gardien vaincu !' : '🎉 Plongée réussie !'}</h2>
+    <p>Score <b>${fmt(rw.score)}</b> / ${fmt(rw.target)} — <b>⚪ +${rw.pearls} perles</b>
     <span class="muted">(${rw.lines.map(([l, n]) => `${l} +${n}`).join(', ')})</span>${rw.type === 'boss' ? '<br>🫧 Oxygène entièrement rechargé.' : ''}</p>`;
   let body = '';
   if (!st) {
@@ -426,7 +426,7 @@ function renderDraft() {
   const intro = ['Regardez ce que le hasard vous donne : quelle direction prendre ?', 'Confirmez votre direction, ou préparez une autre piste.', 'Dernier choix : une pièce maîtresse pour votre récif.'][dr.picks.length];
   const offer = (t) => offerCard({ t }, { action: 'draft', id: t });
   app.innerHTML = `<div class="screen">${topbar()}<div class="between draft">
-    <h2>🧭 Préparez votre expédition · choix ${round}/${BASE.draftRounds}</h2>
+    <h2>🎒 Préparez votre expédition · choix ${round}/${BASE.draftRounds}</h2>
     <p class="ev-tx">${intro}</p>
     <div class="draft-kit">
       <div><h3>Vos coraux</h3><div class="mini-corals">${r.corals.map((c) => coralCard(c.t, { lvl: c.lvl, mini: true })).join('')}</div></div>
@@ -441,7 +441,7 @@ function renderDraft() {
 // ── Comptoir ────────────────────────────────────────────────
 function renderShop() {
   const r = S.run; const s = r.shop;
-  const buy = (kind, i, p) => `<button class="btn ${r.pearls >= p ? 'primary' : ''}" data-action="buy" data-kind="${kind}" data-i="${i}" ${r.pearls >= p ? '' : 'disabled'}>🦪 ${p}</button>`;
+  const buy = (kind, i, p) => `<button class="btn ${r.pearls >= p ? 'primary' : ''}" data-action="buy" data-kind="${kind}" data-i="${i}" ${r.pearls >= p ? '' : 'disabled'}>⚪ ${p}</button>`;
   const sold = '<div class="sold">Vendu</div>';
   const cr = s.cr.map((x, i) => (x ? offerCard({ t: x.t }, { extra: buy('cr', i, x.price) }) : sold)).join('');
   const ar = s.ar.map((x, i) => (x ? artifactCard(x.a, buy('ar', i, x.price)) : '<div class="sold short">Vendu</div>')).join('');
@@ -449,16 +449,16 @@ function renderShop() {
   const swapNote = E.reefFull(r) ? '<div class="hints"><span class="hint">♻️ Récif plein : remplace un corail</span></div>' : '';
   const co = s.co.map((x, i) => (x ? `<div class="offer-item">${coralCard(x.t)}${swapNote}${buy('co', i, x.price)}</div>` : sold)).join('');
   app.innerHTML = `<div class="screen">${topbar()}${toast()}<div class="between">
-    <h2>⚓ Le Comptoir</h2>
+    <h2>🛖 Le Comptoir</h2>
     <div class="shop-top">
-      <div><h3>${CARD_TYPES.creature.icon} Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · 🦪 ${s.reroll}</button></h3>
+      <div><h3>${CARD_TYPES.creature.icon} Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · ⚪ ${s.reroll}</button></h3>
         <div class="offer">${cr}</div></div>
       ${s.co.length ? `<div><h3>${CARD_TYPES.coral.icon} Bouture de corail</h3><div class="offer">${co}</div></div>` : ''}
     </div>
     <h3>${CARD_TYPES.artifact.icon} Artefacts et ${CARD_TYPES.mutation.icon} mutation</h3><div class="offer">${ar}${mu}</div>
     <div class="shop-foot">
-      <button class="btn" data-action="shopremove" ${r.pearls >= r.removeCost && r.bag.length > 6 ? '' : 'disabled'}>Relâcher une créature · 🦪 ${r.removeCost}</button>
-      <button class="btn" data-action="shopheal" ${r.pearls >= E.healCost(r) && r.oxygen < r.oxygenMax ? '' : 'disabled'}>+1 🫧 · 🦪 ${E.healCost(r)}</button>
+      <button class="btn" data-action="shopremove" ${r.pearls >= r.removeCost && r.bag.length > 6 ? '' : 'disabled'}>Relâcher une créature · ⚪ ${r.removeCost}</button>
+      <button class="btn" data-action="shopheal" ${r.pearls >= E.healCost(r) && r.oxygen < r.oxygenMax ? '' : 'disabled'}>+1 🫧 · ⚪ ${E.healCost(r)}</button>
       <button class="btn primary big" data-action="leave">Reprendre la route →</button>
     </div>
   </div></div>`;
@@ -482,7 +482,7 @@ function renderEvent() {
 function renderRest() {
   const r = S.run;
   app.innerHTML = `<div class="screen">${topbar()}<div class="between event">
-    <div class="ev-em">🌱</div><h2>La Nurserie</h2>
+    <div class="ev-em">🍼</div><h2>La Nurserie</h2>
     <p class="ev-tx">Un recoin abrité où le récif reprend des forces avant d’affronter le gardien. Choisissez une seule option.</p>
     <div class="choices">
       <button class="btn choice" data-action="rest" data-w="heal" ${r.oxygen < r.oxygenMax ? '' : 'disabled'}><b>Reprendre son souffle</b><span>+1 🫧 Oxygène</span></button>
@@ -517,8 +517,8 @@ function renderEnd() {
 // ── Fenêtres ────────────────────────────────────────────────
 const RULES = `
   <h4>But</h4><p>Traverser trois zones — le <b>Lagon</b>, le <b>Tombant</b> et les <b>Abysses</b> — et vaincre leurs trois gardiens.</p>
-  <h4>La carte</h4><p>Choisissez votre route : 🐟 plongées, 💀 plongées périlleuses (condition + artefact), ❓ épaves (rencontres),
-  ⚓ comptoir, 🌱 nurserie. Le 👑 gardien de chaque zone est annoncé à l’avance : préparez-vous en conséquence.</p>
+  <h4>La carte</h4><p>Choisissez votre route : 🤿 plongées, 💀 plongées périlleuses (condition + artefact), ❓ épaves (rencontres),
+  🛖 comptoir, 🍼 nurserie. Le 🛡️ gardien de chaque zone est annoncé à l’avance : préparez-vous en conséquence.</p>
   <h4>Une plongée</h4><p>Atteignez l’<b>objectif</b> en un nombre limité de <b>marées</b> 🌊. À chaque marée, vous piochez des créatures
   de votre <b>banc</b>, puis vous les posez autour de vos coraux. Quand vous lancez la marée, chaque corail marque :</p>
   <p class="formula-ex"><b>Éclat</b> (la somme des créatures posées) × <b>Mult</b> (celui du corail + les bonus)</p>
@@ -605,7 +605,7 @@ function modalHTML() {
       ], 130)
       : `<div class="coll" style="${collGrid(p.purpose === 'fortify' ? r.corals.length : eligible.length, 130)}">${items}</div>`;
     return `<div class="modal-bg"><div class="modal wide">
-      <h2>${titles[p.purpose]}${p.cost ? ` · 🦪 ${p.cost}` : ''}</h2>
+      <h2>${titles[p.purpose]}${p.cost ? ` · ⚪ ${p.cost}` : ''}</h2>
       ${list}
       ${p.cancel ? '<button class="btn" data-action="pickcancel">Annuler</button>' : ''}</div></div>`;
   }
@@ -646,7 +646,7 @@ function modalHTML() {
         { label: '🂠 Pioche', cards: inPile(d.draw) },
         { label: '🌊 En jeu', cards: inPlay.map((c) => item(c, d.hand.includes(c.id) ? 'en main' : 'récif')) },
       ];
-      if (d.exhausted.length) groups.push({ label: '💨 Épuisées', cards: inPile(d.exhausted) });
+      if (d.exhausted.length) groups.push({ label: '🚫 Épuisées', cards: inPile(d.exhausted) });
       list = collGroups(groups, reserved);
     }
     return `<div class="modal-bg" data-action="closemodal"><div class="modal wide" data-stop>
@@ -759,10 +759,17 @@ function renderTuto() {
 const placing = (r) => r.phase === 'dive' && r.dive.phase === 'place';
 const stage = (r, kind) => r.phase === 'reward' && r.reward.stages[0]?.kind === kind;
 const handOf = (r, f) => r.dive.hand.map((id) => E.inst(r, id)).find((c) => f(CREATURES[c.t]));
+// L'indice sous une offre reprend l'emoji du corail qui la met en valeur : on montre ceux du joueur.
+const likedHint = (r) => {
+  const icons = [...new Set(r.corals.map((c) => CORALS[c.t]).filter((k) => k.likes?.length).map((k) => k.emoji))];
+  return icons.length
+    ? `Sous chaque offre, l'icône <b>${icons.join('</b> ou <b>')}</b> signale que l'un de vos coraux la met en valeur.`
+    : `Sous chaque offre, un indice : l'icône d'un de vos coraux signale qu'il la met en valeur.`;
+};
 const TIPS = [
   // Préparation (vraie expédition)
   { id: 'draft', title: 'Préparer son expédition', target: '.draft-kit', when: (r) => r.phase === 'draft',
-    text: `Le hasard vous donne 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets, puis gardez 1 créature sur 3, trois fois. Sous chaque offre, un indice : <b>🧠</b> l'un de vos coraux la met en valeur.` },
+    text: (r) => `Le hasard vous donne 2 coraux et un banc de créatures. <b>Survolez-les</b> pour lire leurs effets, puis gardez 1 créature sur 3, trois fois. ${likedHint(r)}` },
   // Plongée : ce qui prolonge le cœur du jeu
   { id: 'cond', title: 'Les conditions', target: '.conds .cond', when: (r) => r.phase === 'dive' && r.dive.cond.length > 0,
     text: `Cette plongée ajoute une règle, rappelée ici : <b>survolez-la</b>. Les plongées périlleuses et les gardiens en ont toujours.` },
@@ -785,10 +792,10 @@ const TIPS = [
   { id: 'oxygen', title: 'L’oxygène 🫧', target: '.o2', when: (r) => r.oxygen < r.oxygenMax && r.phase !== 'end',
     text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête, et rater un gardien y met fin aussitôt. Le comptoir et la nurserie en rendent.` },
   { id: 'reward', title: 'La récompense', target: '.offer', when: (r) => stage(r, 'creature'),
-    text: `Une plongée réussie rapporte des perles 🦪 (plus encore si vous finissez en avance) et une créature pour votre banc. Sous chaque offre, ce qu'elle apporte : <b>🧠</b> l'un de vos coraux la met en valeur.` },
+    text: (r) => `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${likedHint(r)}` },
   { id: 'map', title: 'La carte', target: '.map-col', when: (r) => r.phase === 'map',
     text: `Votre route descend de haut en bas, et chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.` },
-  { id: 'guardian', title: 'Le gardien 👑', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
+  { id: 'guardian', title: 'Le gardien 🛡️', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
     text: `Chaque zone se termine par un <b>gardien</b>, annoncé dès maintenant avec sa règle : préparez votre récif en conséquence. Le vaincre fait pousser un nouveau corail.` },
   { id: 'eco', title: 'Les écosystèmes 🌿', target: '.eco-row', when: (r) => r.phase === 'map' || r.phase === 'draft',
     text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. <span class="glow">En vert</span>, le bonus est actif. Les offres l'indiquent par 🌿.` },
@@ -796,11 +803,11 @@ const TIPS = [
     text: `Plus dures, avec une condition imposée, mais elles rapportent un <b>artefact</b> en plus de la récompense habituelle.` },
   { id: 'artifact', title: 'Les artefacts 🏺', target: '.arts', when: (r) => r.phase === 'map' && r.artifacts.length > 0,
     text: `Vos <b>artefacts</b> changent les règles pour toute l'expédition. Votre plongeur en apporte un ; les plongées périlleuses, le comptoir et les épaves en donnent d'autres.` },
-  { id: 'shop', title: 'Le comptoir ⚓', target: '.shop-top', when: (r) => r.phase === 'shop',
-    text: `Dépensez vos perles 🦪. Pensez aussi à <b>relâcher</b> une créature : un banc plus fin pioche plus souvent ses meilleures cartes.` },
+  { id: 'shop', title: 'Le comptoir 🛖', target: '.shop-top', when: (r) => r.phase === 'shop',
+    text: `Dépensez vos perles ⚪. Pensez aussi à <b>relâcher</b> une créature : un banc plus fin pioche plus souvent ses meilleures cartes.` },
   { id: 'event', title: 'Les épaves ❓', target: '.choices', when: (r) => r.phase === 'event' && !r.event.done,
     text: `Une rencontre et un choix. Certains se paient : <b>survolez</b> une option pour lire ce qu'elle implique.` },
-  { id: 'rest', title: 'La nurserie 🌱', target: '.choices', when: (r) => r.phase === 'rest',
+  { id: 'rest', title: 'La nurserie 🍼', target: '.choices', when: (r) => r.phase === 'rest',
     text: `Une seule option, à choisir selon votre récif : souffle, créature améliorée ★, corail fortifié, mutation ou fusion de deux créatures identiques.` },
   { id: 'mutation', title: 'Les mutations 🧬', target: '.artifact.mutation, .c-mut, .bdg.mut', when: () => true,
     text: `Une <b>mutation</b> se pose sur une créature précise de votre banc et la modifie pour toujours. Survolez-la pour lire son effet.` },
@@ -829,7 +836,7 @@ function renderTip() {
   const t = currentTip();
   S.tipShown = t && t.id;
   if (!t) return;
-  overlay({ title: `💡 ${t.title}`, count: `Découverte ${meta.tips.length + 1}/${TIPS.length}`, text: t.text, target: tipTarget(t), kind: 'tip',
+  overlay({ title: `💡 ${t.title}`, count: `Découverte ${meta.tips.length + 1}/${TIPS.length}`, text: typeof t.text === 'function' ? t.text(S.run) : t.text, target: tipTarget(t), kind: 'tip',
     buttons: '<button class="btn ghost" data-action="tipsoff">Ne plus afficher</button><button class="btn primary" data-action="tipok">Compris</button>' });
 }
 function readTip(id) {

@@ -74,10 +74,10 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
 
 ## Le côté roguelike
 
-- **Carte à embranchements** pour chacune des 3 zones (Lagon → Tombant → Abysses) : 🐟 plongées, 💀 plongées
-  périlleuses (avec condition, rapportent un artefact), ❓ épaves (événements à choix), ⚓ comptoir, 🌱 nurserie.
+- **Carte à embranchements** pour chacune des 3 zones (Lagon → Tombant → Abysses) : 🤿 plongées, 💀 plongées
+  périlleuses (avec condition, rapportent un artefact), ❓ épaves (événements à choix), 🛖 comptoir, 🍼 nurserie.
   Aucun nœud n'offre tout ce qu'offre son voisin avec des choix en plus : chaque route en ferme d'autres.
-- **Gardiens** 👑 annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
+- **Gardiens** 🛡️ annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
   son récif en conséquence. Le vaincre fait pousser un **nouveau corail**.
 - **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien y met fin aussitôt.
 - **Économie** : des perles pour chaque victoire, et un bonus pour chaque marée non utilisée.

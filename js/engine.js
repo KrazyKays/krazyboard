@@ -625,7 +625,7 @@ export function launchTide(run) {
     }
   }
   run.pearls += out.pearls;
-  if (out.pearls) out.notes.push(`🦪 +${out.pearls} perles`);
+  if (out.pearls) out.notes.push(`⚪ +${out.pearls} perles`);
   d.score += res.total;
   d.devoured = [...out.devoured];
   d.last = { corals: res.corals, total: res.total, factors: res.factors, byKey: res.byKey, notes: out.notes, tide: d.tide };
@@ -680,7 +680,7 @@ function finishDive(run) {
     if (d.type === 'boss') { endRun(run, false); return; }
     run.oxygen--;
     if (run.oxygen <= 0) { endRun(run, false); return; }
-    run.toast = `💨 Plongée ratée : vous perdez 1 🫧 Oxygène (${run.oxygen}/${run.oxygenMax}).`;
+    run.toast = `❌ Plongée ratée : vous perdez 1 🫧 Oxygène (${run.oxygen}/${run.oxygenMax}).`;
     backToMap(run);
     return;
   }
@@ -922,7 +922,7 @@ export function restChoose(run, what) {
 // ── Épaves (événements) ─────────────────────────────────────
 export const EVENTS = {
   galion: {
-    title: 'Le galion englouti', emoji: '🏴‍☠️',
+    title: 'Le galion englouti', emoji: '🚢',
     text: 'La coque éventrée d’un galion repose sur le sable. Des reflets dorés brillent dans la cale… mais l’air de votre bouteille baisse vite.',
     choices: [
       { label: 'Fouiller la cale', text: '+12 perles, −1 🫧', ok: (r) => r.oxygen > 1,
@@ -933,7 +933,7 @@ export const EVENTS = {
     ],
   },
   sardines: {
-    title: 'Le grand banc', emoji: '🐟',
+    title: 'Le grand banc', emoji: '🎏',
     text: 'Un banc de sardines tourbillonne autour de vous, si dense qu’il masque la lumière.',
     choices: [
       { label: 'Nager avec le banc', text: '+2 Sardines', act: (r) => { addCreature(r, 'sardine'); addCreature(r, 'sardine'); return 'Deux sardines décident de vous suivre.'; } },
@@ -941,7 +941,7 @@ export const EVENTS = {
     ],
   },
   sirene: {
-    title: 'Le chant de la sirène', emoji: '🧜',
+    title: 'Le chant de la sirène', emoji: '🎶',
     text: 'Une silhouette vous fait signe depuis un rocher. Son chant semble pouvoir faire naître la vie… contre rétribution.',
     choices: [
       { label: 'Lui offrir 6 perles', text: 'Dupliquez une créature de votre banc', ok: (r) => r.pearls >= 6,
@@ -973,7 +973,7 @@ export const EVENTS = {
     ],
   },
   grotte: {
-    title: 'La grotte phosphorescente', emoji: '🔮',
+    title: 'La grotte phosphorescente', emoji: '🌌',
     text: 'Une grotte baigne dans une lueur bleutée. Les créatures qui y entrent en ressortent changées.',
     choices: [
       { label: 'Y guider une créature', text: 'Améliorez une créature ★',
@@ -987,7 +987,7 @@ export const EVENTS = {
     ],
   },
   mue: {
-    title: 'La mue', emoji: '🦞',
+    title: 'La mue', emoji: '🩻',
     text: 'Une carapace vide flotte entre deux eaux. L’occasion de laisser derrière vous ce qui vous alourdit.',
     choices: [
       { label: 'Alléger votre banc', text: 'Retirez une créature gratuitement', ok: (r) => r.bag.length > 6,
@@ -1005,7 +1005,7 @@ export const EVENTS = {
     ],
   },
   decharge: {
-    title: 'La décharge sous-marine', emoji: '🛍️',
+    title: 'La décharge sous-marine', emoji: '🛢️',
     text: 'Des sacs et des bidons s’amoncellent, et au milieu, des objets de valeur. Se servir, c’est aussi repartir avec des déchets accrochés à vos palmes.',
     choices: [
       { label: 'Fouiller les bidons', text: '+15 perles, mais un Sac plastique rejoint votre banc',
@@ -1025,7 +1025,7 @@ export const EVENTS = {
     ],
   },
   frai: {
-    title: 'La nuit du frai', emoji: '🌕',
+    title: 'La nuit du frai', emoji: '🌙',
     text: 'À la pleine lune, tout le récif se reproduit. Vos créatures aussi ressentent l’appel.',
     choices: [
       { label: 'Unir deux créatures identiques', text: 'Fusion ★ : Éclat additionné et +1 Mult permanent', ok: canMerge,

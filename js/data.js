@@ -224,10 +224,10 @@ export const CREATURES = {
 
 // ── Mutations : un modificateur posé sur UNE créature de votre banc ──
 export const MUTATIONS = {
-  nacre:      { name: 'Nacrée', emoji: '🦪', text: '+1 perle à chaque marée où elle joue.' },
+  nacre:      { name: 'Nacrée', emoji: '🪩', text: '+1 perle à chaque marée où elle joue.' },
   fluo:       { name: 'Fluorescente', emoji: '🔆', text: '+2 Mult.' },
   echo:       { name: 'Écho', emoji: '🔁', text: 'Marque deux fois son Éclat.' },
-  fidele:     { name: 'Fidèle', emoji: '🧲', text: 'Revient en main après la marée.' },
+  fidele:     { name: 'Fidèle', emoji: '🪃', text: 'Revient en main après la marée.' },
   veloce:     { name: 'Véloce', emoji: '💨', text: 'Pose : piochez 1 créature.' },
   polyvalent: { name: 'Caméléon', emoji: '🦎', text: 'Compte comme toutes les familles.' },
   geant:      { name: 'Géante', emoji: '💪', text: '+6 Éclat.' },
@@ -278,17 +278,17 @@ export const CORALS = {
   eponge: { name: 'Éponge', emoji: '🧽', color: '#90be6d', mult: 1, rar: 'c',
     text: '+1 Mult par famille différente posée dessus.',
     multB: (xs) => (xs.some((x) => x.allFam) ? 8 : new Set(xs.map((x) => x.def.fam)).size) },
-  herbier: { name: 'Herbier', emoji: '🌿', color: '#52b788', mult: 2, rar: 'u', likes: ['sed'],
+  herbier: { name: 'Herbier', emoji: '🌾', color: '#52b788', mult: 2, rar: 'u', likes: ['sed'],
     text: 'Les Sédentaires posés dessus ont +4 Éclat.',
     eclatB: (x) => (x.def.sed ? 4 : 0) },
-  bulle: { name: 'Corail bulle', emoji: '🫧', color: '#a2d2ff', mult: 2, rar: 'u',
+  bulle: { name: 'Corail bulle', emoji: '🍇', color: '#a2d2ff', mult: 2, rar: 'u',
     text: '+1 Remous à chaque plongée.' },
   feu: { name: 'Corail de feu', emoji: '🔥', color: '#ff5400', mult: 2, rar: 'r',
     text: 'Mult ×2 si sa couronne est complète.',
     xmultB: (full) => (full ? 2 : 1) },
   noir: { name: 'Corail noir', emoji: '🖤', color: '#6c6c80', mult: 5, rar: 'r', blocked: ['N'],
     text: 'Mult 5, mais seulement 3 emplacements (pas de Surface).' },
-  lumineux: { name: 'Corail lumineux', emoji: '💡', color: '#ffe66d', mult: 2, rar: 'r', likes: ['pose'],
+  lumineux: { name: 'Corail lumineux', emoji: '🌟', color: '#ffe66d', mult: 2, rar: 'r', likes: ['pose'],
     text: 'Les effets de Pose des créatures posées dessus se déclenchent deux fois.' },
 };
 
@@ -303,7 +303,7 @@ export const CROWNS = {
 export const ARTIFACTS = {
   boussole:  { name: 'Boussole', emoji: '🧭', price: 12, text: '+1 Marée à chaque plongée.' },
   filet:     { name: 'Filet', emoji: '🥅', price: 10, text: '+1 créature en main.' },
-  masque:    { name: 'Masque de plongée', emoji: '🤿', price: 7, text: '+1 Remous à chaque plongée.' },
+  masque:    { name: 'Masque de plongée', emoji: '🥽', price: 7, text: '+1 Remous à chaque plongée.' },
   hamecon:   { name: 'Hameçon doré', emoji: '🪝', price: 8, text: 'Les Poissons ont +1 Éclat.' },
   nasse:     { name: 'Nasse', emoji: '🧺', price: 8, text: 'Les Crustacés ont +3 Éclat.' },
   perle:     { name: 'Perle noire', emoji: '⚫', price: 10, text: '+1 Mult sur chaque corail.' },
@@ -354,13 +354,13 @@ export const KEYWORDS = [
 
 // ── Conditions (élites et gardiens) ─────────────────────────
 export const CONDITIONS = {
-  kraken:   { name: 'Le Kraken', emoji: '🦑', text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules.' },
+  kraken:   { name: 'Le Kraken', emoji: '🪢', text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules.' },
   tempete:  { name: 'La Tempête', emoji: '🌪️', text: 'Après chaque marée, votre main est emportée (défaussée).' },
   leviathan:{ name: 'Le Léviathan', emoji: '🐉', text: 'Le corail qui marque le plus ne compte pas.' },
   glace:    { name: 'Courant glacé', emoji: '🧊', text: 'Aucun Remous, et 1 créature de moins en main.' },
   fantome:  { name: 'Banc fantôme', emoji: '👻', text: 'Aucun bonus de Couronne (complète, Harmonie, Mosaïque).' },
   pression: { name: 'Haute pression', emoji: '🌑', text: 'Chaque corail a −1 Mult (minimum 1).' },
-  siphon:   { name: 'Le Siphon', emoji: '🌀', text: 'Une marée de moins.' },
+  siphon:   { name: 'Le Siphon', emoji: '🕳️', text: 'Une marée de moins.' },
 };
 
 // ── Zones de l'expédition ───────────────────────────────────
@@ -372,12 +372,12 @@ export const ZONES = [
 export const ROWS_PER_ZONE = 6;
 
 export const NODE_TYPES = {
-  dive:  { name: 'Plongée', icon: '🐟', text: 'Une plongée classique.' },
+  dive:  { name: 'Plongée', icon: '🤿', text: 'Une plongée classique.' },
   elite: { name: 'Plongée périlleuse', icon: '💀', text: 'Objectif élevé et une condition — récompense : un artefact.' },
   event: { name: 'Épave', icon: '❓', text: 'Une rencontre inattendue.' },
-  shop:  { name: 'Comptoir', icon: '⚓', text: 'Achetez créatures, artefacts et coraux.' },
-  rest:  { name: 'Nurserie', icon: '🌱', text: 'Reprenez votre souffle ou faites grandir votre récif.' },
-  boss:  { name: 'Gardien', icon: '👑', text: 'Le gardien de la zone. Un échec met fin à l’expédition.' },
+  shop:  { name: 'Comptoir', icon: '🛖', text: 'Achetez créatures, artefacts et coraux.' },
+  rest:  { name: 'Nurserie', icon: '🍼', text: 'Reprenez votre souffle ou faites grandir votre récif.' },
+  boss:  { name: 'Gardien', icon: '🛡️', text: 'Le gardien de la zone. Un échec met fin à l’expédition.' },
 };
 
 // ── Plongeurs (méta-progression) ────────────────────────────
@@ -385,7 +385,7 @@ export const NODE_TYPES = {
 // des perles et un penchant (`lean`) qui oriente le tirage et les offres.
 export const DIVERS = {
   exploratrice: {
-    name: "L'Exploratrice", emoji: '🧭', text: 'Tirages sans orientation. Départ : Masque de plongée.',
+    name: "L'Exploratrice", emoji: '🥾', text: 'Tirages sans orientation. Départ : Masque de plongée.',
     artifacts: ['masque'], pearls: 4, lean: [],
     unlock: null,
   },
@@ -400,7 +400,7 @@ export const DIVERS = {
     unlock: { boss: 1, text: 'Vaincre un gardien' },
   },
   naturaliste: {
-    name: 'La Naturaliste', emoji: '🌿', text: 'Tirages orientés vers les Sédentaires et les Échinodermes. Départ : Forêt d’algues.',
+    name: 'La Naturaliste', emoji: '🔍', text: 'Tirages orientés vers les Sédentaires et les Échinodermes. Départ : Forêt d’algues.',
     artifacts: ['algues'], pearls: 4, lean: ['sed', 'echino'],
     unlock: { zone: 3, text: 'Atteindre les Abysses' },
   },
