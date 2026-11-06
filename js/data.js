@@ -274,7 +274,7 @@ export const CORALS = {
     text: '+1 Mult par créature posée dessus.',
     multB: (xs) => xs.length },
   table: { name: 'Corail table', emoji: '🍄', color: '#4cc9f0', mult: 3, rar: 'c',
-    text: 'Solide : Mult de base élevé.' },
+    text: 'Aucun effet, mais Mult de base élevé.' },
   eponge: { name: 'Éponge', emoji: '🧽', color: '#90be6d', mult: 1, rar: 'c',
     text: '+1 Mult par famille différente posée dessus.',
     multB: (xs) => (xs.some((x) => x.allFam) ? 8 : new Set(xs.map((x) => x.def.fam)).size) },
