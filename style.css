@@ -95,6 +95,7 @@ h2, h3, p { margin: 0; }
 .map-side h3 { color: var(--accent2); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
 .boss-card { background: rgba(255,209,102,.08); border: 1px solid rgba(255,209,102,.35); border-radius: 12px; padding: 6px 12px; font-size: .92rem; }
 .bc-h { font-weight: 700; color: var(--accent2); margin-bottom: 2px; } .bc-c { margin: 2px 0; }
+.bc-pace { margin: 3px 0; font-size: .86rem; } .bc-pace.ok b { color: var(--accent); } .bc-pace.low b { color: var(--bad); }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .82rem; color: var(--muted); }
 .mini-corals { display: flex; gap: 6px; flex-wrap: wrap; }
 
@@ -232,7 +233,7 @@ h2, h3, p { margin: 0; }
 .core .mb { margin-top: 1px; background: var(--mult); color: #300; border-radius: 99px; padding: 0 5px; white-space: nowrap; }
 .formula { background: rgba(0,0,0,.35); border-radius: 99px; padding: 1px 12px; font-size: .84rem; white-space: nowrap; }
 .formula .ecl { color: var(--accent2); font-weight: 700; } .formula .mlt { color: var(--mult); font-weight: 700; }
-.formula.ignored { text-decoration: line-through; opacity: .6; } .formula .ign { display: inline; font-size: .7rem; text-decoration: none; }
+.formula.halved b { color: var(--bad); } .formula .ign { display: inline; font-size: .7rem; }
 /* Buffs obtenus : dans les coins libres du corail, pour ne pas prendre de hauteur */
 .crowns { position: absolute; top: 0; width: calc(var(--cell) - 6px); display: flex; flex-direction: column; gap: 2px; z-index: 2; }
 .crowns.tl { left: 0; align-items: flex-start; }
@@ -411,3 +412,11 @@ body.dragging .card[data-action]:hover { transform: none; }
   .reef { flex: none; height: 300px; }
   .offer, .shop-top { flex-wrap: wrap; }
 }
+
+/* Clavier : focus visible sur tout élément jouable */
+.btn:focus-visible, [data-action]:focus-visible { outline: 3px solid var(--accent2); outline-offset: 2px; }
+.node:focus-visible { outline: none; } .node:focus-visible circle { stroke: var(--accent2); stroke-width: 5; }
+/* Carte : étape touchée (écran tactile) et son panneau */
+.node.picked circle { stroke: var(--accent2); stroke-width: 5; animation: none; }
+.node-info { display: flex; gap: 10px; align-items: center; justify-content: space-between; background: var(--panel);
+  border: 1px solid var(--accent2); border-radius: 12px; padding: 6px 12px; font-size: .88rem; }

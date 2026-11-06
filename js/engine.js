@@ -190,7 +190,8 @@ export function offerHints(run, t) {
 // Expédition du tutoriel : graine et départ fixés, sans préparation. Elle s'ouvre
 // directement sur la première plongée : le tutoriel n'enseigne que le cœur du jeu,
 // le reste se découvre ensuite, une mécanique à la fois (voir les Découvertes de l'UI).
-// Ni artefact ni écosystème actif : chaque famille du banc reste sous son premier palier
+// Objectifs allégés (BASE.tutorialX) : la première expédition doit pouvoir se gagner.
+// Seul le Masque du plongeur, aucun écosystème actif : chaque famille du banc reste sous son premier palier
 // (3 Poissons sur 4, 2 Crustacés sur 4, 2 Cnidaires et 2 Mollusques sur 3, 1 du reste).
 export function tutorialRun() {
   const run = newRun({ seed: 2024, kit: {
@@ -198,7 +199,6 @@ export function tutorialRun() {
     bag: ['sardine', 'sardine', 'sardine', 'crevette', 'crabe', 'meduse', 'meduse', 'poulpe', 'poulpe', 'tortue', 'loutre', 'etoile'],
   } });
   run.tutorial = true;
-  run.artifacts = [];
   run.map = tutorialMap(run);
   const first = run.map.rows[0].find(Boolean);
   enterNode(run, first.row, first.lane);
@@ -277,40 +277,48 @@ const COND_KEYS = Object.keys(CONDITIONS);
 // Le Léviathan et le Siphon sont trop punitifs avec seulement 2 coraux.
 const condPool = (run) => COND_KEYS.filter((k) => run.zone > 0 || !['leviathan', 'siphon'].includes(k));
 
+// Conditions qui, réunies, rendraient un gardien presque impossible.
+const COND_CLASH = [['leviathan', 'siphon']];
+const clash = (list, k) => COND_CLASH.some((pair) => pair.includes(k) && pair.some((o) => o !== k && list.includes(o)));
+
+// La carte d'une zone ne dépend que de la graine de l'expédition et de la zone : dans la
+// plongée du jour, tout le monde traverse les mêmes cartes, quels que soient ses choix.
 export function genMap(run) {
+  const g = { rs: seedFrom(`${run.seed}:map:${run.zone}`) };
   const rows = [];
   for (let r = 0; r < ROWS_PER_ZONE; r++) {
     // Après une rangée de 2, toujours 3 : deux rangées de 2 ne formeraient que des couloirs.
     const wide = r > 0 && rows[r - 1].filter(Boolean).length === 2;
-    let lanes = wide || rnd(run) < 0.7 ? [0, 1, 2] : shuffle(run, [0, 1, 2]).slice(0, 2).sort();
+    let lanes = wide || rnd(g) < 0.7 ? [0, 1, 2] : shuffle(g, [0, 1, 2]).slice(0, 2).sort();
     if (r === ROWS_PER_ZONE - 1) lanes = [1];
     const row = [null, null, null];
     for (const l of lanes) {
       // Pas deux Comptoirs ni deux élites sur la même rangée.
       const used = row.filter(Boolean).map((n) => n.type);
       const opts = ROW_TYPES[r].filter(([t]) => !(['shop', 'elite'].includes(t) && used.includes(t)));
-      const type = weighted(run, opts.length ? opts : ROW_TYPES[r]);
+      const type = weighted(g, opts.length ? opts : ROW_TYPES[r]);
       row[l] = { row: r, lane: l, type, done: false };
-      if (type === 'elite') row[l].cond = [pick(run, condPool(run))];
+      if (type === 'elite') row[l].cond = [pick(g, condPool(run))];
     }
     rows.push(row);
   }
   // Au moins un Comptoir par zone.
   if (!rows[2].concat(rows[3]).some((n) => n && n.type === 'shop')) {
     const cand = rows[2].filter(Boolean);
-    const n = pick(run, cand); n.type = 'shop'; delete n.cond;
+    const n = pick(g, cand); n.type = 'shop'; delete n.cond;
   }
   // Liens
   for (let r = 0; r < ROWS_PER_ZONE - 1; r++) {
     const from = rows[r].filter(Boolean);
     const to = rows[r + 1].filter(Boolean);
-    const pattern = to.length === 1 ? from.map(() => [0]) : pick(run, LINK_PATTERNS[`${from.length}>${to.length}`]);
+    const pattern = to.length === 1 ? from.map(() => [0]) : pick(g, LINK_PATTERNS[`${from.length}>${to.length}`]);
     from.forEach((n, i) => { n.links = pattern[i].map((j) => to[j].lane); });
   }
   for (const n of rows[ROWS_PER_ZONE - 1].filter(Boolean)) n.links = [1];
-  const conds = shuffle(run, condPool(run));
   const nb = (run.zone === 2 ? 2 : 1) + (run.depth >= 5 ? 1 : 0);
-  const boss = { row: ROWS_PER_ZONE, lane: 1, type: 'boss', done: false, cond: conds.slice(0, nb), links: [] };
+  const conds = [];
+  for (const k of shuffle(g, condPool(run))) if (conds.length < nb && !clash(conds, k)) conds.push(k);
+  const boss = { row: ROWS_PER_ZONE, lane: 1, type: 'boss', done: false, cond: conds, links: [] };
   rows.push([null, boss, null]);
   return { zone: run.zone, rows };
 }
@@ -369,8 +377,10 @@ export function stepIndex(run, node) { return run.zone * (ROWS_PER_ZONE + 1) + n
 export function targetFor(run, node) {
   let t = BASE.zoneTargets[run.zone] * BASE.rowGrowth ** node.row;
   if (node.type === 'elite') t *= BASE.eliteX;
-  if (node.type === 'boss') t *= BASE.bossX;
-  if (run.depth >= 1) t *= 1.15;
+  if (node.type === 'boss') t *= BASE.bossX[run.zone];
+  if (run.tutorial) t *= BASE.tutorialX;
+  if (run.depth >= 1) t *= 1.2;
+  if (run.depth >= 2 && (node.type === 'elite' || node.type === 'boss')) t *= 1.1;
   const mag = 10 ** Math.max(1, Math.floor(Math.log10(t)) - 1);
   return Math.round(t / mag) * mag;
 }
@@ -416,7 +426,13 @@ export function isBlocked(run, ci, slot) {
   if (k.blocked && k.blocked.includes(slot)) return true;
   return run.dive.blocked.includes(`${ci}:${slot}`);
 }
-function openSlots(run, ci) { return SLOTS.filter((s) => !isBlocked(run, ci, s)); }
+// Emplacements du corail lui-même. Une case prise par le Kraken en fait partie : elle reste
+// vide pour cette marée, et la couronne de ce corail ne peut donc pas être complète.
+function openSlots(run, ci) {
+  const k = CORALS[run.corals[ci].t];
+  return SLOTS.filter((s) => !(k.blocked && k.blocked.includes(s)));
+}
+const krakenAt = (run, ci, s) => run.dive.blocked.includes(`${ci}:${s}`);
 
 function krakenBlock(run) {
   const d = run.dive;
@@ -581,6 +597,10 @@ export function scoreTide(run) {
     if (has(run, 'perle')) addM(ARTIFACTS.perle.emoji, ARTIFACTS.perle.name, 1, ARTIFACTS.perle.text);
     addM('🐋', 'Chant de la baleine', whales, 'Chaque Baleine posée dans le récif donne +1 Mult à tous les coraux.');
     addM(ARTIFACTS.trident.emoji, ARTIFACTS.trident.name, trident, ARTIFACTS.trident.text);
+    // Marée montante : chaque marée déjà jouée renforce tous les coraux (seulement s'ils portent des créatures).
+    const rising = on.length ? (d.tide - 1) * BASE.risingMult : 0;
+    mult += rising;
+    addM('🌊', 'Marée montante', rising, `+${BASE.risingMult} Mult sur chaque corail par marée déjà jouée dans cette plongée.`);
     if (hasCond(run, 'pression') && mult > 1) { addM(CONDITIONS.pression.emoji, CONDITIONS.pression.name, -1, CONDITIONS.pression.text); mult -= 1; }
     const full = B.full(ci);
     let xm = 1;
@@ -602,7 +622,8 @@ export function scoreTide(run) {
           xm *= n; addX(CROWNS.mosaic.icon, CROWNS.mosaic.name, n, CROWNS.mosaic.text(n), true);
         }
       }
-    } else if (!full && !hasCond(run, 'fantome') && on.length > 0 && openSlots(run, ci).length - on.length === 1) {
+    } else if (!full && !hasCond(run, 'fantome') && on.length > 0 && openSlots(run, ci).length - on.length === 1
+      && !openSlots(run, ci).some((s) => krakenAt(run, ci, s))) {
       const fullM = has(run, 'conque') ? 3 : 1;
       buffs.push({ icon: CROWNS.full.icon, name: CROWNS.full.name, val: `+${fullM}M`, text: `Plus qu’un emplacement à occuper. ${CROWNS.full.text(fullM)}`, crown: true, hint: true });
     }
@@ -610,11 +631,12 @@ export function scoreTide(run) {
     const multTot = Math.round(mult * xm * 100) / 100;
     return { ci, eclat, mult, xm, multTot, score: Math.floor(eclat * mult * xm), buffs, ignored: false, n: on.length };
   });
+  // Léviathan : le corail qui marque le plus ne compte qu'à moitié.
   if (hasCond(run, 'leviathan')) {
     const best = corals.reduce((b, c) => (c.score > (b?.score ?? -1) ? c : b), null);
-    if (best && best.score > 0) best.ignored = true;
+    if (best && best.score > 0) { best.halved = true; best.score = Math.floor(best.score / 2); }
   }
-  let total = corals.reduce((a, c) => a + (c.ignored ? 0 : c.score), 0);
+  let total = corals.reduce((a, c) => a + c.score, 0);
   const factors = [];
   if (has(run, 'ancre') && d.tide === 1) { total *= 2; factors.push('⚓ Ancre ×2'); }
   if (has(run, 'sablier') && d.tide === d.tidesMax) { total *= 2; factors.push('⏳ Sablier ×2'); }
@@ -643,6 +665,7 @@ export function launchTide(run) {
   run.pearls += out.pearls;
   if (out.pearls) out.notes.push(`⚪ +${out.pearls} perles`);
   d.score += res.total;
+  run.points = (run.points || 0) + res.total;
   d.devoured = [...out.devoured];
   d.last = { corals: res.corals, total: res.total, factors: res.factors, byKey: res.byKey, notes: out.notes, tide: d.tide };
   d.history.push(res.total);
@@ -657,6 +680,7 @@ export function nextTide(run) {
   const d = run.dive;
   if (d.phase !== 'scored') return;
   const dev = new Set(d.devoured || []);
+  const back = []; // Fidèles : reviennent en main, même après la Tempête
   d.board.forEach((b) => {
     for (const s of SLOTS) {
       const cell = b[s];
@@ -667,25 +691,39 @@ export function nextTide(run) {
       if (def.sed) { cell.lock = true; continue; }
       b[s] = null;
       if (def.ephem) d.exhausted.push(cell.id);
-      else if (def.loyal || i.mut === 'fidele') d.hand.push(cell.id);
+      else if (def.loyal || i.mut === 'fidele') back.push(cell.id);
       else d.discard.push(cell.id);
     }
   });
   if (dev.size) run.bag = run.bag.filter((c) => !dev.has(c.id));
   d.devoured = [];
-  if (d.ended) { finishDive(run); return; }
+  if (d.ended) { d.hand.push(...back); finishDive(run); return; }
   d.tide++;
   if (hasCond(run, 'tempete')) { d.discard.push(...d.hand); d.hand = []; }
+  d.hand.push(...back);
   drawTo(run, d.handSize);
   krakenBlock(run);
   d.last = null;
   d.phase = 'place';
 }
 
-// Abandonner les marées restantes n'est pas permis : on peut seulement les jouer.
+// Remonter avant la fin : la plongée compte comme ratée (−1 Oxygène, ou fin de
+// l'expédition face à un gardien). Évite de jouer des marées sans espoir.
+export function surrender(run) {
+  const d = run.dive;
+  if (!d || d.phase !== 'place' || d.ended) return false;
+  d.ended = 'lose';
+  d.phase = 'scored';
+  d.devoured = [];
+  nextTide(run);
+  return true;
+}
+
 function finishDive(run) {
   const d = run.dive;
   run.dives++;
+  // Repère pour le gardien : la meilleure marée de la dernière plongée.
+  if (d.history.length) run.bestTide = Math.max(...d.history);
   let win = d.ended === 'win';
   if (!win && has(run, 'trefle') && d.score >= d.target * 0.75) {
     win = true;
@@ -1008,10 +1046,11 @@ export const EVENTS = {
     choices: [
       { label: 'Y guider une créature', text: 'Améliorez une créature ★',
         act: (r) => { r.pending = { purpose: 'upgrade', then: 'map' }; return null; } },
-      { label: 'Explorer le fond', text: '50 % : un artefact. 50 % : −1 🫧', ok: (r) => artifactOffers(r, 1).length,
+      // Comme au galion, il faut au moins 2 🫧 : une épave ne met jamais fin à l'expédition.
+      { label: 'Explorer le fond', text: '50 % : un artefact. 50 % : −1 🫧', ok: (r) => r.oxygen > 1 && artifactOffers(r, 1).length,
         act: (r) => {
           if (rnd(r) < 0.5) { const a = artifactOffers(r, 1)[0]; addArtifact(r, a); return `Trouvé : ${ARTIFACTS[a].emoji} ${ARTIFACTS[a].name} !`; }
-          r.oxygen--; if (r.oxygen <= 0) { endRun(r, false); return 'Vous vous perdez dans le noir…'; }
+          r.oxygen--;
           return 'Vous vous égarez et remontez à bout de souffle. (−1 Oxygène)';
         } },
     ],

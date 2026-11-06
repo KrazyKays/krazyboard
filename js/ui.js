@@ -71,7 +71,9 @@ const hasSave = (key = SAVE_KEY) => { const r = loadJSON(key, null); return !!(r
 // ── Utilitaires ─────────────────────────────────────────────
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = (n) => Math.round(n).toLocaleString('fr-FR');
-const today = () => new Date().toISOString().slice(0, 10);
+// Jour local (et non UTC) : la plongée du jour change à minuit, heure du joueur.
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const dailyLabel = (e) => (e.score < 0 ? 'en cours' : `${e.best} · ${fmt(e.pts || 0)} pts`);
 const plural = (n, s, p = s + 's') => (n > 1 ? p : s);
 const zoomTpl = (html) => `<template>${html}</template>`;
 const typeBand = (type) => `<div class="a-type">${CARD_TYPES[type].icon} ${CARD_TYPES[type].name}</div>`;
@@ -200,7 +202,9 @@ function renderTitle() {
       ${tutoSave ? `<button class="btn ${hasSave() ? '' : 'primary'}" data-action="continue" data-slot="tuto">Reprendre l’expédition du tutoriel</button>` : ''}
       ${firstTime ? '<button class="btn primary" data-action="tuto">Tutoriel (conseillé)</button>' : ''}
       <button class="btn ${hasSave() || tutoSave || firstTime ? '' : 'primary'}" data-action="newrun">Nouvelle expédition</button>
-      <button class="btn" data-action="daily" data-tip="Même graine pour tout le monde aujourd’hui">📅 Plongée du jour${daily ? ` (${daily.best})` : ''}</button>
+      <button class="btn" data-action="daily" data-tip="${esc(daily
+        ? `Plongée du jour — Votre essai classé : ${dailyLabel(daily)}. | ${dailyRunning() ? 'Reprenez-le pour le terminer.' : 'Vous pouvez rejouer, hors classement.'}`
+        : 'Plongée du jour — Même départ et mêmes cartes pour tout le monde aujourd’hui. | Seul le premier essai est classé.')}">📅 Plongée du jour${daily ? ` (${dailyLabel(daily)})` : ''}</button>
     </div>
     <div class="row">
       ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
@@ -215,12 +219,22 @@ function renderTitle() {
 }
 
 // ── Carte ───────────────────────────────────────────────────
+// Repère face au gardien : la meilleure marée de la dernière plongée, comparée au rythme
+// moyen qu'il faudra tenir sur ses marées (la Marée montante aide les dernières).
+function pace(r, boss) {
+  if (!r.bestTide) return '';
+  const tides = BASE.tides + (E.has(r, 'boussole') ? 1 : 0) - (boss.cond.includes('siphon') ? 1 : 0);
+  const need = E.targetFor(r, boss) / Math.max(1, tides);
+  const ok = r.bestTide >= need;
+  return `<div class="bc-pace ${ok ? 'ok' : 'low'}" data-tip="${esc(`Votre rythme — Meilleure marée de votre dernière plongée, face au score moyen qu’il faudra marquer à chaque marée contre le gardien. | La Marée montante renforce les dernières marées ; ses conditions peuvent vous freiner.`)}">📈 Votre meilleure marée : <b>${fmt(r.bestTide)}</b> · il faudra ~<b>${fmt(need)}</b> par marée</div>`;
+}
+
 function renderMap() {
   const r = S.run;
   const av = E.availableNodes(r);
   const W = 360; const RH = 74; const H = 40 + r.map.rows.length * RH;
   const X = (l) => 60 + l * 120; const Y = (row) => 34 + row * RH;
-  let lines = ''; let nodes = '';
+  let lines = ''; let nodes = ''; let info = null;
   r.map.rows.forEach((row) => row.forEach((n) => {
     if (!n) return;
     for (const l of n.links || []) {
@@ -235,11 +249,13 @@ function renderMap() {
     const T = NODE_TYPES[n.type];
     const isAv = av.includes(n);
     const cur = r.pos && r.pos.row === n.row && r.pos.lane === n.lane;
-    const cls = ['node', `t-${n.type}`, isAv && 'av', n.done && 'done', cur && 'cur'].filter(Boolean).join(' ');
+    const picked = isAv && S.ui.node === `${n.row}:${n.lane}`;
+    const cls = ['node', `t-${n.type}`, isAv && 'av', n.done && 'done', cur && 'cur', picked && 'picked'].filter(Boolean).join(' ');
     const tip = [`${T.name} — ${T.text}`, ...(n.cond || []).map((k) => `${CONDITIONS[k].emoji} ${CONDITIONS[k].name} : ${CONDITIONS[k].text}`),
       ...(['dive', 'elite', 'boss'].includes(n.type) ? [`🏁 Objectif : ${fmt(E.targetFor(r, n))}`] : [])].join(' | ');
     const rad = n.type === 'boss' ? 28 : 21;
-    nodes += `<g class="${cls}" data-tip="${esc(tip)}" ${isAv ? `data-action="node" data-row="${n.row}" data-lane="${n.lane}"` : ''}>
+    if (picked) info = { T, tip, n };
+    nodes += `<g class="${cls}" data-tip="${esc(tip)}" ${isAv ? `data-action="node" data-row="${n.row}" data-lane="${n.lane}" aria-label="${esc(`${T.name}${n.cond ? ` (${n.cond.map((k) => CONDITIONS[k].name).join(', ')})` : ''}`)}"` : ''}>
       <circle cx="${X(n.lane)}" cy="${Y(n.row)}" r="${rad}"/>
       <text x="${X(n.lane)}" y="${Y(n.row) + 1}" font-size="${n.type === 'boss' ? 26 : 19}">${n.done && !cur ? '✓' : T.icon}</text></g>`;
   }));
@@ -251,8 +267,11 @@ function renderMap() {
         <svg class="map" viewBox="0 0 ${W} ${H}" role="img" aria-label="Carte de la zone">${lines}${nodes}</svg>
       </div>
       <div class="map-side">${toast()}
+        ${info ? `<div class="node-info"><div>${info.tip.split(' | ').map((l, i) => (i ? `<div>${esc(l)}</div>` : `<b>${esc(l)}</b>`)).join('')}</div>
+          <button class="btn primary" data-action="node" data-row="${info.n.row}" data-lane="${info.n.lane}" data-go="1">Y aller →</button></div>` : ''}
         <div class="boss-card">
           <div class="bc-h">🛡️ Gardien de la zone · objectif ${fmt(E.targetFor(r, boss))}</div>
+          ${pace(r, boss)}
           ${boss.cond.map((k) => `<div class="bc-c" ${glossText(CONDITIONS[k].text)}><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
           <div class="muted">Rater le gardien met fin à l’expédition. Le vaincre : nouveau corail et oxygène rechargé.</div>
         </div>
@@ -320,7 +339,7 @@ function renderDive() {
       <span class="ph">${SLOT_ICON[s]}</span><span class="lb">${SLOT_LABEL[s]}${bridged(ci, s) ? ' 🔗' : ''}</span></div>`;
   };
   // Buffs du corail : une pastille par bonus, avec sa valeur (+1M, ×2M…).
-  const buffChip = (b) => `<span class="crown ${b.hint ? 'hint' : ''} ${b.neg ? 'neg' : ''}" data-tip="${esc(`${b.name} — ${b.text}`)}">${b.icon}<span class="cn"> ${esc(b.name)}</span> <span class="bv ${b.x ? 'x' : ''}">${b.val}</span></span>`;
+  const buffChip = (b) => `<span class="crown ${b.hint ? 'hint' : ''} ${b.neg ? 'neg' : ''} ${b.icon === '🌊' ? 'rising' : ''}" data-tip="${esc(`${b.name} — ${b.text}`)}">${b.icon}<span class="cn"> ${esc(b.name)}</span> <span class="bv ${b.x ? 'x' : ''}">${b.val}</span></span>`;
   const corals = r.corals.map((c, ci) => {
     const k = CORALS[c.t];
     const ci2 = info.corals[ci];
@@ -338,9 +357,9 @@ function renderDive() {
       <div class="crowns tl">${crownB}</div><div class="crowns tr">${otherB}</div>
       ${bridge}
     </div>
-    <div class="formula ${ci2.ignored ? 'ignored' : ''} ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35 + 0.15}s">
+    <div class="formula ${ci2.halved ? 'halved' : ''} ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35 + 0.15}s">
       <span class="ecl" data-tip="Éclat : somme des créatures">${fmt(ci2.eclat)}</span> × <span class="mlt" data-tip="Mult total">${ci2.multTot}</span> = <b>${fmt(ci2.score)}</b>
-      ${ci2.ignored ? '<span class="ign">🐉 ignoré</span>' : ''}
+      ${ci2.halved ? `<span class="ign" data-tip="${esc(`${CONDITIONS.leviathan.name} — ${CONDITIONS.leviathan.text}`)}">🐉 ÷2</span>` : ''}
     </div></div>`;
   }).join('');
   const reef = `<section class="reef">${toast()}<div class="reef-row ${innerWidth / r.corals.length < 260 || innerHeight < 640 ? 'dense' : ''}" style="--n:${r.corals.length}">${corals}</div></section>`;
@@ -356,6 +375,7 @@ function renderDive() {
     } else {
       const tip = sel ? 'Choisissez un emplacement <span class="glow">en surbrillance</span>.' : 'Glissez une créature vers un emplacement autour d’un corail, ou cliquez sur l’une puis sur l’autre. Glissez-la dans la main pour la ranger.';
       bar = `<div class="msg">Marée <b>${d.tide}/${d.tidesMax}</b> — ${tip}${info.factors.length ? ` <span class="badge">${info.factors.join(' · ')}</span>` : ''}</div>
+        <button class="btn ghost" data-action="surrenderask" ${S.tuto ? 'disabled' : ''} data-tip="${esc(`Remonter — Abandonner cette plongée : elle compte comme ratée (${d.type === 'boss' ? 'fin de l’expédition' : '−1 🫧'}).`)}">🏳️ Remonter</button>
         <button class="btn" data-action="remous" ${d.remous > 0 && d.hand.length && !S.tuto ? '' : 'disabled'}>🌀 Remous (${d.remous})</button>
         <button class="btn primary big" data-action="launch" ${(n || !d.hand.length) && (!S.tuto || TUTO[S.tuto.i].launch) ? '' : 'disabled'}>Lancer la marée 🌊 <span class="proj-btn">+${fmt(info.total)}</span></button>`;
     }
@@ -518,12 +538,14 @@ function renderEnd() {
       <div class="line"><span>Plongeur</span><b>${DIVERS[r.diverId].emoji} ${DIVERS[r.diverId].name}</b></div>
       <div class="line"><span>Plongées</span><b>${r.dives}</b></div>
       <div class="line"><span>Gardiens vaincus</span><b>${r.bosses}</b></div>
+      <div class="line"><span>Points marqués</span><b>${fmt(r.points || 0)}</b></div>
       <div class="line"><span>Banc final</span><b>${r.bag.length} créatures</b></div>
       ${top && top.bonus ? `<div class="line"><span>Star de l’expédition</span><b>${CREATURES[top.t].emoji} ${CREATURES[top.t].name} (+${top.bonus})</b></div>` : ''}
       <div class="line"><span>Graine</span><b>${r.seed}</b></div>
     </div>
-    ${e.win && !e.tutorial && r.depth === meta.depth - 1 && meta.depth <= DEPTHS.length - 1 ? `<p class="unlock">🔓 ${DEPTHS[meta.depth].name} débloquée !</p>` : ''}
-    <div class="row"><button class="btn primary" data-action="totitle">Retour au menu</button></div>
+    ${r.depthUnlocked ? `<p class="unlock">🔓 ${DEPTHS[r.depth + 1].name} débloquée !</p>` : ''}
+    ${r.daily ? `<p class="muted">📅 Plongée du jour ${r.day || ''}${r.ranked ? ' · essai classé' : ' · hors classement'}</p>` : ''}
+    <div class="row">${r.daily ? '<button class="btn" data-action="share">📋 Copier mon résultat</button>' : ''}<button class="btn primary" data-action="totitle">Retour au menu</button></div>
   </div></div>`;
 }
 
@@ -553,7 +575,8 @@ const RULES = `
   <li><b>Parasites</b> ☣️ : ces cartes encombrent votre banc. Relâchez-les au comptoir, ou faites-les manger par un Orque ou un Labre.</li></ul>
   <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien y met fin aussitôt.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
-  Vaincre l’expédition débloque une <b>Profondeur</b> plus difficile.</p>
+  Atteindre les Abysses débloque une <b>Profondeur</b> plus difficile.
+  🌊 <b>Marée montante</b> : à chaque marée d’une plongée, vos coraux gagnent +1 Mult. Une plongée sans espoir ? 🏳️ <b>Remonter</b> l’abandonne (elle compte comme ratée).</p>
   <h4>Astuces</h4><p>Survolez une carte pour lire la définition de ses mots-clés et voir les cartes qu’elle cite, comme la forme éclose d’un Œuf de requin.
   Le bandeau en haut d’une carte indique son type : 🐾 créature, 🪸 corail, 🏺 artefact ou 🧬 mutation.
   Glissez-déposez les créatures pour les poser, les déplacer ou les échanger sur le récif, les reprendre en main ou choisir l’ordre de votre main.</p>`;
@@ -652,6 +675,14 @@ function modalHTML() {
       <h2>Règles de Krazy Sea</h2><div class="cols">${RULES}</div>
       <button class="btn primary" data-action="closemodal">Compris !</button></div></div>`;
   }
+  if (S.modal === 'surrender') {
+    const boss = r.dive.type === 'boss';
+    return `<div class="modal-bg" data-action="closemodal"><div class="modal" data-stop>
+      <h2>🏳️ Remonter à la surface ?</h2>
+      <p class="wipe-tx">La plongée s’arrête et compte comme <b>ratée</b> : ${boss ? 'face au gardien, <b>l’expédition prend fin</b>.' : `vous perdez <b>1 🫧</b> (il vous en reste ${r.oxygen}).`}</p>
+      <div class="row"><button class="btn primary" data-action="closemodal">Continuer à plonger</button>
+        <button class="btn danger" data-action="surrenderok">Remonter</button></div></div></div>`;
+  }
   if (S.modal === 'wipe') {
     const lost = [
       (hasSave() || hasSave(TUTO_SAVE_KEY)) && 'votre expédition en cours',
@@ -723,16 +754,20 @@ const TUTO = [
     text: () => (S.ui.sel
       ? `Posez-la sur la <b>Surface ⬆</b> de l'Anémone, l'emplacement <span class="glow">en surbrillance</span>. L'Anémone donne +3 Éclat aux Poissons posés dessus.`
       : `Cliquez sur une <b>Sardine</b>, ou faites-la glisser vers la <b>Surface ⬆</b> de l'Anémone.`) },
-  { target: () => '.formula', title: 'Éclat × Mult',
-    text: () => `Chaque corail marque l'<span style="color:var(--accent2)"><b>Éclat</b></span> des créatures posées autour de lui, multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Certaines créatures, comme la Méduse, augmentent le Mult : c'est là que naissent les gros scores.` },
   { title: 'Les voisins', force: { t: 'sardine', ci: 0, s: 'W' },
     text: () => (S.ui.sel
       ? `Posez-la sur le <b>Flanc ⬅</b>, juste à côté de la première : les deux Sardines se touchent.`
       : `Les créatures qui se touchent s'entraident. Une Sardine gagne <b>+2 Éclat par Sardine voisine</b> : prenez la deuxième Sardine de votre main.`) },
   { title: 'La Crevette nettoyeuse', force: { t: 'crevette', ci: 0, s: 'E' },
     text: () => (S.ui.sel
-      ? `Posez-la sur le <b>Flanc ➡</b> : elle touche la Sardine de la Surface. Ce Flanc a <b>3 voisins</b> : la Surface ⬆, le Fond ⬇ et, grâce au pont 🔗, le Flanc ⬅ du Corail bulle. Le meilleur endroit pour une créature qui aide ses voisines !`
+      ? `Posez-la sur le <b>Flanc ➡</b> : elle touche la Sardine de la Surface ⬆ et le Fond ⬇. Ce Flanc peut même toucher le Corail bulle voisin par un pont 🔗 : vous le découvrirez plus tard.`
       : `La <b>Crevette nettoyeuse</b> donne +3 Éclat à chacune de ses voisines : cliquez dessus.`) },
+  { title: 'Le Mult', force: { t: 'meduse', ci: 0, s: 'S' },
+    text: () => (S.ui.sel
+      ? `Posez-la sur le <b>Fond ⬇</b> : la Crevette lui donne +3 Éclat, et les 4 emplacements de l'Anémone seront occupés.`
+      : `Pour l'instant, l'Anémone multiplie par <b>1</b> seulement. La <b>Méduse</b> ajoute <b>+2 Mult</b> à son corail : cliquez dessus.`) },
+  { target: () => '.formula', title: 'Éclat × Mult',
+    text: () => `Chaque corail marque l'<span style="color:var(--accent2)"><b>Éclat</b></span> de ses créatures multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Celui de l'Anémone est passé de 1 à <b>4</b> : 1 de base, +2 pour la Méduse, +1 parce que sa couronne est complète 💠. C'est en empilant le Mult que naissent les gros scores.` },
   { title: 'Lancez la marée', launch: true, target: () => '[data-action="launch"]',
     text: () => `Posez d'autres créatures si vous le voulez : plus le récif est rempli, plus la marée rapporte. Une erreur ? Recliquez sur une créature posée pour la reprendre. Puis cliquez sur <b>Lancer la marée</b>.`,
     done: () => dive().phase === 'scored' },
@@ -750,7 +785,7 @@ for (const step of TUTO) {
 const tutoForce = () => (S.tuto && TUTO[S.tuto.i].force) || null;
 const tutoAllows = (ci, s) => { const f = tutoForce(); return !f || (f.ci === ci && f.s === s); };
 // Ce que le tutoriel a déjà expliqué : ces Découvertes sont considérées comme lues.
-const TUTO_COVERS = ['aftertide', 'bridge'];
+const TUTO_COVERS = ['aftertide'];
 
 function startTuto() {
   S.run = E.tutorialRun();
@@ -817,6 +852,8 @@ const TIPS = [
     text: `Une couronne d'une seule famille forme une 🎯 <b>Harmonie</b> : Mult ×2. Toutes de familles différentes, une 🌈 <b>Mosaïque</b> : Mult ×1,5. La famille est l'icône en haut à gauche de chaque carte.` },
   { id: 'bridge', title: 'Les ponts 🔗', target: '.bridge.half, .bridge.on', when: placing,
     text: `Le Flanc ➡ d'un corail et le Flanc ⬅ du suivant sont <b>voisins</b>. Posez une créature de chaque côté : le pont s'illumine et les effets de voisinage passent d'un corail à l'autre.` },
+  { id: 'rising', title: 'La marée montante 🌊', target: '.crowns.tr .crown.rising', when: (r) => placing(r) && r.dive.tide >= 2,
+    text: `À chaque marée d'une plongée, la mer monte : chaque corail garni gagne <b>+1 Mult</b> par marée déjà jouée. Les dernières marées rapportent davantage. Une plongée perdue d'avance ? 🏳️ <b>Remonter</b> l'abandonne (elle compte comme ratée).` },
   { id: 'remous', title: 'Le Remous 🌀', target: '[data-action="remous"]', when: (r) => placing(r) && r.dive.tide >= 2 && r.dive.remous > 0,
     text: `Une main qui ne vous plaît pas ? Le <b>Remous</b> renvoie les créatures choisies dans la pioche et vous en donne autant de nouvelles. Vous n'en avez que quelques-uns par plongée.` },
   // Entre les plongées
@@ -1065,10 +1102,31 @@ document.addEventListener('mouseover', (ev) => {
   else if (zoom !== zoomFor) showZoom(zoom);
 });
 document.documentElement.addEventListener('mouseleave', hideHover);
+document.addEventListener('focusin', (ev) => {
+  if (!ev.target.matches || !ev.target.matches(':focus-visible')) return;
+  const tip = ev.target.closest('[data-tip]'); const zoom = ev.target.closest('[data-zoom]');
+  if (zoom) { hideTip(); showZoom(zoom); } else if (tip) { hideZoom(); showTip(tip); }
+});
+document.addEventListener('focusout', hideHover);
 document.addEventListener('scroll', hideHover, true);
 
 // ── Rendu ───────────────────────────────────────────────────
+const noHover = () => matchMedia('(hover: none)').matches;
+// Signature d'un élément interactif, pour lui rendre le focus après un nouveau rendu.
+const FOCUS_KEYS = ['action', 'id', 'ci', 's', 'row', 'lane', 'kind', 'i', 'w', 'k', 'm', 'slot', 'go'];
+const focusSig = (el) => (el && el.dataset && el.dataset.action ? FOCUS_KEYS.map((k) => el.dataset[k] ?? '').join('|') : null);
+function keyboardReady(sig) {
+  for (const el of app.querySelectorAll('[data-action]:not(button):not(.modal-bg)')) {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+  }
+  if (!sig) return;
+  const back = [...app.querySelectorAll('[data-action]')].find((el) => focusSig(el) === sig);
+  if (back) back.focus({ preventScroll: true });
+}
+
 function render() {
+  const sig = app.contains(document.activeElement) ? focusSig(document.activeElement) : null;
   hideHover();
   const r = S.run;
   if (S.tuto && r) advanceTuto();
@@ -1081,6 +1139,7 @@ function render() {
   if (S.anim) { S.anim = false; animateCounts(); }
   trackSeen();
   save();
+  keyboardReady(sig);
   if (DEBUG) Object.assign(window, { S, E, render });
 }
 
@@ -1101,23 +1160,31 @@ function animateCounts() {
 function onRunEnd() {
   const r = S.run;
   meta.bestZone = Math.max(meta.bestZone, r.end.zone);
-  if (r.end.win && !r.end.tutorial) {
-    meta.wins++;
-    if (r.depth === meta.depth && meta.depth < DEPTHS.length - 1) meta.depth++;
-  }
-  if (r.daily) {
-    const progress = r.end.win ? '🏆' : `${ZONES[r.end.zone].name} ${Math.min(r.end.row + 1, ROWS_PER_ZONE + 1)}`;
-    const score = r.end.win ? 999 : r.end.zone * 10 + r.end.row;
-    const prev = meta.daily[today()];
-    if (!prev || score > prev.score) meta.daily[today()] = { best: progress, score };
+  if (r.end.win && !r.end.tutorial) meta.wins++;
+  // Plongée du jour : seul le premier essai est classé. Score : progression, puis points marqués.
+  if (r.daily && r.ranked) {
+    meta.daily[r.day || today()] = { best: dailyProgress(r), score: r.end.win ? 999 : r.end.zone * 10 + r.end.row, pts: r.points || 0 };
   }
   saveMeta();
   clearSave(slotOf(r));
 }
 let lastBosses = 0;
+const dailyProgress = (r) => (r.end.win ? '🏆' : `${ZONES[r.end.zone].name} ${Math.min(r.end.row + 1, ROWS_PER_ZONE + 1)}`);
+// Un essai classé du jour est-il sauvegardé, à reprendre ?
+function dailyRunning() {
+  const r = loadJSON(SAVE_KEY, null);
+  return !!(r && r.v === E.SAVE_VERSION && r.phase !== 'end' && r.daily && r.ranked && r.day === today());
+}
 function afterAction() {
   const r = S.run;
   if (!r || S.tuto) return;
+  // Atteindre les Abysses à sa Profondeur la plus difficile débloque la suivante.
+  if (!r.tutorial && r.zone >= 2 && r.depth === meta.depth && meta.depth < DEPTHS.length - 1 && !r.depthUnlocked) {
+    r.depthUnlocked = true;
+    meta.depth++;
+    saveMeta();
+    r.toast = `${r.toast ? `${r.toast} ` : ''}🔓 ${DEPTHS[meta.depth].name} débloquée !`;
+  }
   if (r.bosses > lastBosses) { meta.bosses += r.bosses - lastBosses; lastBosses = r.bosses; saveMeta(); }
   meta.bestZone = Math.max(meta.bestZone, r.zone);
   if (r.phase === 'end' && !r.endTracked) { r.endTracked = true; onRunEnd(); }
@@ -1138,7 +1205,23 @@ const handlers = {
   diver: (el) => { S.diver = el.dataset.k; },
   depth: (el) => { S.depth = +el.dataset.i; },
   newrun: () => startRun({ diverId: S.diver, depth: S.depth }),
-  daily: () => startRun({ diverId: 'exploratrice', depth: 0, seed: E.seedFrom(`krazy-${today()}`), daily: true }),
+  daily: () => {
+    const day = today();
+    if (dailyRunning()) { handlers.continue({ dataset: {} }); return; }
+    const ranked = !meta.daily[day];
+    startRun({ diverId: 'exploratrice', depth: 0, seed: E.seedFrom(`krazy-${day}`), daily: true });
+    Object.assign(S.run, { day, ranked });
+    if (ranked) { meta.daily[day] = { best: '', score: -1, pts: 0 }; saveMeta(); }
+  },
+  share: () => {
+    const r = S.run;
+    const txt = `🌊 Krazy Sea · Plongée du jour ${r.day || today()}\n${dailyProgress(r)} · ${fmt(r.points || 0)} pts · ${r.bosses} ${plural(r.bosses, 'gardien')}${r.ranked ? '' : ' (hors classement)'}`;
+    const done = () => { const b = app.querySelector('[data-action="share"]'); if (b) b.textContent = '✅ Copié !'; };
+    const ask = () => prompt('Copiez votre résultat :', txt);
+    try { navigator.clipboard.writeText(txt).then(done, ask); } catch { ask(); }
+  },
+  surrenderask: () => { S.modal = 'surrender'; },
+  surrenderok: () => { S.modal = null; E.surrender(S.run); resetUI(); },
   continue: (el) => {
     const r = loadJSON(el.dataset.slot === 'tuto' ? TUTO_SAVE_KEY : SAVE_KEY, null);
     if (r && r.v === E.SAVE_VERSION) { S.run = r; lastBosses = r.bosses; S.screen = 'game'; resetUI(); }
@@ -1166,6 +1249,8 @@ const handlers = {
   tipstoggle: () => { meta.tipsOff = !meta.tipsOff; saveMeta(); },
 
   node: (el) => {
+    const key = `${el.dataset.row}:${el.dataset.lane}`;
+    if (noHover() && !el.dataset.go && S.ui.node !== key) { S.ui.node = key; return; }
     E.enterNode(S.run, +el.dataset.row, +el.dataset.lane);
     resetUI();
   },
@@ -1344,7 +1429,15 @@ document.addEventListener('pointercancel', () => {
 app.addEventListener('click', (ev) => {
   if (swallowClick) return;
   const el = ev.target.closest('[data-action]');
-  if (!el) return;
+  if (!el || (el.classList.contains('modal-bg') && ev.target.closest('[data-stop]'))) {
+    // Sans survol (écran tactile), toucher une pastille ou une carte affiche sa bulle.
+    if (noHover()) {
+      const tip = ev.target.closest('[data-tip]');
+      const zoom = ev.target.closest('[data-zoom]');
+      if (tip && !(zoom && zoom.matches('.card.mini'))) { hideZoom(); showTip(tip); } else if (zoom) { hideTip(); showZoom(zoom); } else hideHover();
+    }
+    if (!el) return;
+  }
   if (el.dataset.action === 'closemodal' && el.classList.contains('modal-bg') && ev.target.closest('[data-stop]')) return;
   const h = handlers[el.dataset.action];
   if (!h || el.disabled) return;
@@ -1354,6 +1447,12 @@ app.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('keydown', (ev) => {
+  const f = document.activeElement;
+  if ((ev.key === 'Enter' || ev.key === ' ') && f && f.dataset && f.dataset.action && f.tagName !== 'BUTTON') {
+    ev.preventDefault();
+    f.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return;
+  }
   if (ev.key !== 'Escape') return;
   if (drag) { endDrag(); return; }
   if (S.modal) S.modal = null;

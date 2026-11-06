@@ -355,9 +355,9 @@ export const KEYWORDS = [
 
 // ── Conditions (élites et gardiens) ─────────────────────────
 export const CONDITIONS = {
-  kraken:   { name: 'Le Kraken', emoji: '🪢', text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules.' },
-  tempete:  { name: 'La Tempête', emoji: '🌪️', text: 'Après chaque marée, votre main est emportée (défaussée).' },
-  leviathan:{ name: 'Le Léviathan', emoji: '🐉', text: 'Le corail qui marque le plus ne compte pas.' },
+  kraken:   { name: 'Le Kraken', emoji: '🪢', text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules : un corail touché ne peut pas avoir de couronne complète.' },
+  tempete:  { name: 'La Tempête', emoji: '🌪️', text: 'Après chaque marée, votre main est emportée (défaussée). Les créatures Fidèles reviennent quand même.' },
+  leviathan:{ name: 'Le Léviathan', emoji: '🐉', text: 'Le corail qui marque le plus ne compte qu’à moitié.' },
   glace:    { name: 'Courant glacé', emoji: '🧊', text: 'Aucun Remous, et 1 créature de moins en main.' },
   fantome:  { name: 'Banc fantôme', emoji: '👻', text: 'Aucun bonus de Couronne (complète, Harmonie, Mosaïque).' },
   pression: { name: 'Haute pression', emoji: '🌑', text: 'Chaque corail a −1 Mult (minimum 1).' },
@@ -407,11 +407,11 @@ export const DIVERS = {
   },
 };
 
-// ── Profondeurs (difficulté cumulative, débloquée en gagnant) ─
+// ── Profondeurs (difficulté cumulative, débloquée en atteignant les Abysses) ─
 export const DEPTHS = [
   { name: 'Surface', text: 'Difficulté normale.' },
-  { name: 'Profondeur 1', text: 'Objectifs +15 %.' },
-  { name: 'Profondeur 2', text: '−1 Remous à chaque plongée.' },
+  { name: 'Profondeur 1', text: 'Objectifs +20 %.' },
+  { name: 'Profondeur 2', text: '−1 Remous à chaque plongée, plongées périlleuses et gardiens +10 %.' },
   { name: 'Profondeur 3', text: '−1 🫧 Oxygène maximum.' },
   { name: 'Profondeur 4', text: 'Prix du Comptoir +25 %.' },
   { name: 'Profondeur 5', text: 'Les gardiens ont une condition supplémentaire.' },
@@ -424,8 +424,15 @@ export const BASE = {
   // puis `draftRounds` choix de 1 créature parmi 3.
   startCorals: 2, startBag: 9, draftRounds: 3,
   // Objectif d'une plongée : zoneTargets[zone] × rowGrowth^rangée
-  // (recalibré par simulation avec les écosystèmes, mutations et fusions)
+  // (recalibré par simulation avec la Marée montante : les plongées ordinaires doivent
+  // pouvoir coûter de l'oxygène, et le gardien ne plus être un mur infranchissable)
   // (gros palier à chaque zone, car le gardien offre un nouveau corail).
-  zoneTargets: [600, 1800, 5400], rowGrowth: 1.13,
-  eliteX: 1.35, bossX: 1.35,
+  // Repères du bot : plongées ~96/94/86 %, gardiens ~74/63/42 %, expéditions gagnées ~19 %.
+  zoneTargets: [800, 2100, 5200], rowGrowth: 1.2,
+  // Gardiens : un coefficient par zone (celui des Abysses tient compte de ses 2 conditions).
+  eliteX: 1.2, bossX: [0.75, 0.8, 0.74],
+  // Expédition du tutoriel : objectifs allégés pour que la première partie se gagne.
+  tutorialX: 0.5,
+  // Marée montante : +1 Mult sur chaque corail par marée déjà jouée dans la plongée.
+  risingMult: 1,
 };

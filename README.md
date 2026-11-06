@@ -13,14 +13,17 @@ des profondeurs.
 - En ligne : voir « Déploiement » ci-dessous.
 
 Un **tutoriel** interactif est proposé sur l'écran titre. Il se limite au cœur du jeu, sur la première marée d'une expédition au départ fixé :
-l'objectif, la main, poser une créature, Éclat × Mult, les voisins et lancer la marée (7 étapes). Le joueur peut ensuite finir cette expédition,
-qui compte comme une vraie et garde sa propre sauvegarde.
+l'objectif, la main, poser une créature, les voisins, la Crevette nettoyeuse, le Mult (une Méduse fait passer l'Anémone de ×1 à ×4),
+Éclat × Mult et lancer la marée (9 étapes). Le joueur peut ensuite finir cette expédition, qui compte comme une vraie et garde sa propre
+sauvegarde. Ses objectifs sont allégés (×0,5) pour que la première partie puisse se gagner.
 
 Le reste du jeu arrive par les **Découvertes** 💡 : chaque règle avancée (couronnes, ponts, Remous, carte, gardien, écosystèmes, comptoir,
 épaves, nurserie, artefacts, mutations…) est présentée la première fois qu'elle apparaît à l'écran, toujours dans le même ordre et au plus une
 par marée ou par écran. Elles se désactivent depuis la bulle ou l'écran titre ; relancer le tutoriel les reprend depuis le début.
 Un joueur qui avait déjà des expéditions avant leur arrivée les trouve désactivées.
-Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement.
+Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement. Sur écran tactile, toucher une pastille ou une carte affiche sa bulle,
+et toucher une étape de la carte la décrit avant d'y entrer (« Y aller »). Au clavier, Tab parcourt les éléments jouables,
+Entrée ou Espace les active et Échap annule.
 
 Le bouton **Effacer mes données** de l'écran titre supprime, après confirmation, la sauvegarde et la progression stockées dans ce navigateur.
 
@@ -50,6 +53,8 @@ Toute la profondeur tactique vient des **associations** :
   le Corail noir n'a que 3 emplacements mais un Mult de 5…).
 
 Une plongée = atteindre un **objectif** en 4 marées, avec quelques **Remous** 🌀 (défausser pour repiocher).
+La **Marée montante** 🌊 donne +1 Mult à chaque corail par marée déjà jouée : les dernières marées rapportent davantage.
+Une plongée sans espoir peut être abandonnée (🏳️ **Remonter**) : elle compte alors comme ratée.
 Les créatures non posées restent en main, et les **Sédentaires** restent sur le récif d'une marée à l'autre.
 Tout se joue au clic ou en **glisser-déposer** (souris et tactile) : poser une créature, la déplacer ou l'échanger sur le récif,
 la reprendre en main ou choisir l'ordre de sa main.
@@ -78,14 +83,18 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
   périlleuses (avec condition, rapportent un artefact), ❓ épaves (événements à choix), 🛖 comptoir, 🍼 nurserie.
   Aucun nœud n'offre tout ce qu'offre son voisin avec des choix en plus : chaque route en ferme d'autres.
 - **Gardiens** 🛡️ annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
-  son récif en conséquence. Le vaincre fait pousser un **nouveau corail**.
+  son récif en conséquence. Le vaincre fait pousser un **nouveau corail**. Sur la carte, le panneau du gardien compare la meilleure
+  marée de votre dernière plongée au rythme qu'il faudra tenir contre lui.
 - **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien y met fin aussitôt.
 - **Économie** : des perles pour chaque victoire, et un bonus pour chaque marée non utilisée.
 - **Changements permanents** : créatures qui grandissent (Poisson-lune, Bernard-l'ermite), prédateurs qui dévorent
   leurs voisins pour toujours (Orque), améliorations ★ à la nurserie, coraux fortifiés, banc à affiner au comptoir.
 - **19 artefacts** qui changent les règles (Boussole, Écaille de sirène, Sablier, Bourse de nacre…).
-- **Méta-progression** : 4 plongeurs (un artefact et un penchant qui oriente les tirages), 5 niveaux de **Profondeur** (difficulté),
-  un **bestiaire** à compléter et une **plongée du jour** (même graine pour tout le monde).
+- **Méta-progression** : 4 plongeurs (un artefact et un penchant qui oriente les tirages), 5 niveaux de **Profondeur** (difficulté :
+  atteindre les Abysses à sa Profondeur la plus difficile débloque la suivante), un **bestiaire** à compléter.
+- **Plongée du jour** 📅 : même départ et mêmes cartes pour tout le monde (chaque zone est tirée de la graine du jour, quels que soient
+  les choix). Seul le premier essai est classé, par progression puis par points marqués ; les suivants se jouent hors classement.
+  Le résultat se copie pour être partagé. Le jour change à minuit, heure locale.
 - Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage, effaçable depuis l'écran titre).
 
 ## Structure
