@@ -799,7 +799,7 @@ const TIPS = [
   { id: 'guardian', title: 'Le gardien 🛡️', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
     text: `Chaque zone se termine par un <b>gardien</b>, annoncé dès maintenant avec sa règle : préparez votre récif en conséquence. Le vaincre fait pousser un nouveau corail.` },
   { id: 'eco', title: 'Les écosystèmes 🌿', target: '.eco-row', when: (r) => r.phase === 'map' || r.phase === 'draft',
-    text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. <span class="glow">En vert</span>, le bonus est actif. Les offres l'indiquent par 🌿.` },
+    text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. <span class="glow">En vert</span>, le bonus est actif. Les offres l'indiquent par l'icône de la famille.` },
   { id: 'elite', title: 'Les plongées périlleuses 💀', target: '.routes [data-type="elite"]', when: (r) => r.phase === 'map',
     text: `Plus dures, avec une condition imposée, mais elles rapportent un <b>artefact</b> en plus de la récompense habituelle.` },
   { id: 'artifact', title: 'Les artefacts 🏺', target: '.arts', when: (r) => r.phase === 'map' && r.artifacts.length > 0,

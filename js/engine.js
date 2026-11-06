@@ -4,7 +4,7 @@
 // ─────────────────────────────────────────────────────────────
 import {
   SLOTS, RING, OPPOSITE, CREATURES, CORALS, ARTIFACTS, CONDITIONS, ZONES,
-  ROWS_PER_ZONE, DIVERS, BASE, RARITY, MUTATIONS, ECOSYSTEMS, CROWNS,
+  ROWS_PER_ZONE, DIVERS, BASE, RARITY, MUTATIONS, ECOSYSTEMS, CROWNS, FAMILIES,
 } from './data.js';
 
 // ── Aléatoire à graine (mulberry32), état stocké dans l'expédition ──
@@ -181,8 +181,8 @@ export function offerHints(run, t) {
   const st = ecoStatus(run).find((e) => e.f === def.fam);
   if (st && st.next) {
     hints.push(st.n + 1 >= st.next.n
-      ? { icon: '🌿', text: `${st.eco.name} débloqué !`, strong: true }
-      : { icon: '🌿', text: `${st.eco.name} ${st.n + 1}/${st.next.n}` });
+      ? { icon: FAMILIES[def.fam].icon, text: `${st.eco.name} débloqué !`, strong: true }
+      : { icon: FAMILIES[def.fam].icon, text: `${st.eco.name} ${st.n + 1}/${st.next.n}` });
   }
   return hints;
 }
