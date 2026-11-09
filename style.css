@@ -383,15 +383,36 @@ body.dragging .card[data-action]:hover { transform: none; }
 /* Tutoriel */
 .tuto-block { position: fixed; inset: 0; z-index: 59; }
 .tuto-block.dim { background: rgba(0,10,20,.65); }
-.tuto-spot { position: fixed; z-index: 60; pointer-events: none; border-radius: 12px; border: 3px solid var(--accent2); animation: spot 1s infinite alternate; }
-.tuto-spot.shade { box-shadow: 0 0 0 100vmax rgba(0,10,20,.65); animation: none; }
-@keyframes spot { to { border-color: transparent; } }
+.tuto-spot { position: fixed; z-index: 60; pointer-events: none; border-radius: 12px; border: 3px solid var(--accent2); }
+.tuto-spot.shade { box-shadow: 0 0 0 100vmax rgba(0,10,20,.65); }
 .tuto-bubble { position: fixed; z-index: 61; width: min(420px, calc(100vw - 16px)); background: #0b3350; border: 2px solid var(--accent2); border-radius: 14px; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.6); line-height: 1.35; font-size: .92rem; }
 .tuto-bubble h4 { margin: 0 0 4px; color: var(--accent2); display: flex; justify-content: space-between; gap: 8px; }
 .tuto-bubble h4 span { color: var(--muted); font-weight: normal; font-size: .82rem; }
 .tuto-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .tuto-actions .btn { padding: 3px 12px; }
 .tuto-turn { color: var(--accent); font-weight: 700; font-size: .84rem; }
+/* Repères du tutoriel et des Découvertes : à l'arrivée de la bulle, chacun s'allume un instant
+   dans l'ordre de lecture puis s'efface ; ensuite, il ne revient qu'au survol (ou à l'appui) du
+   mot souligné qui le cite. Cerne collé à l'élément : rien ne déborde sur les voisins. Tons du
+   jeu : jaune (Éclat, tutoriel), rose (Mult), turquoise (Découvertes). */
+.tuto-spot.glide { transition: left .35s ease-out, top .35s ease-out, width .35s ease-out, height .35s ease-out; }
+.tuto-ping { --tone: var(--accent2); position: fixed; z-index: 60; pointer-events: none; border-radius: 8px; border: 2px solid var(--tone);
+  box-shadow: 0 0 0 2px rgba(0,10,20,.8), inset 0 0 0 1px rgba(0,10,20,.8);
+  opacity: 0; animation: pingin 1.5s var(--d) ease-out; transition: opacity .15s; }
+.tuto-ping.mlt { --tone: var(--mult); } .tuto-ping.tip { --tone: var(--accent); }
+.tuto-ping.hot { opacity: 1; animation: none; }
+@keyframes pingin { 0% { opacity: 0; transform: scale(1.25); } 15% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; } }
+.tlink { font-weight: 700; color: var(--accent2); border-bottom: 2px dotted currentColor; cursor: help; }
+.tlink.on { border-bottom-style: solid; }
+.tuto-bubble.tip .tlink { color: var(--accent); } .tlink.mlt, .tuto-bubble.tip .tlink.mlt { color: var(--mult); }
+.tuto-point { position: fixed; z-index: 62; pointer-events: none; font-size: 1.7rem; line-height: 1; transform: translate(-50%, -100%); filter: drop-shadow(0 2px 4px rgba(0,0,0,.7)); animation: pointbob .9s ease-in-out infinite alternate; }
+.tuto-point.up { transform: translate(-50%, 0); animation-name: pointbobup; }
+@keyframes pointbob { to { transform: translate(-50%, calc(-100% - 6px)); } }
+@keyframes pointbobup { to { transform: translate(-50%, 6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .tuto-spot.glide { transition: none; }
+  .tuto-ping, .tuto-point { animation: none; }
+}
 /* Découvertes : plus légères que le tutoriel, couleur turquoise */
 .tuto-bubble.tip { border-color: var(--accent); }
 .tuto-bubble.tip h4 { color: var(--accent); }

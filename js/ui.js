@@ -745,34 +745,41 @@ function modalHTML() {
 // Tout le reste (couronnes, ponts, carte, comptoir…) arrive ensuite par les Découvertes.
 // Les étapes `done` attendent une action du joueur ; les autres se lisent et bloquent l'écran.
 const dive = () => S.run.dive;
+// `focus` : les détails dont parle le texte, chacun cerné à l'écran par un repère. Les
+// repères s'annoncent d'une onde, un par un dans l'ordre de lecture, puis restent fixes :
+// seul ce qui attend une action bouge. `fl(i, mot, ton)` relie un mot du texte au repère i,
+// qui prend son ton (ecl jaune, mlt rose) ; survoler le mot éclaire ce repère et atténue
+// les autres. Les Découvertes (TIPS) acceptent le même champ `focus`.
+const fl = (i, word, tone = '') => `<span class="tlink ${tone}" data-fi="${i}">${word}</span>`;
 const TUTO = [
-  { target: () => '.hud', title: 'Le but',
-    text: () => `Une plongée, c'est un <b>objectif de points</b> à atteindre en 4 <b>marées</b> 🌊. La barre se remplit à chaque marée.` },
-  { target: () => '.hand', title: 'Vos créatures',
-    text: () => `Voici votre main, piochée dans votre banc. Chaque créature a un <b>Éclat</b>, la pastille en haut à droite : ce qu'elle rapporte une fois posée.` },
-  { title: 'Posez une créature', force: { t: 'sardine', ci: 0, s: 'N' },
+  { target: () => '.hud', title: 'Le but', focus: ['.h-c .sc', '.tides', '.h-c .bar'],
+    text: () => `Une plongée, c'est un ${fl(0, 'objectif de points')} à atteindre en 4 ${fl(1, 'marées 🌊')}. ${fl(2, 'La barre')} se remplit à chaque marée.` },
+  { target: () => '.hand', title: 'Vos créatures', focus: ['.hand .c-pts'],
+    text: () => `Voici votre main, piochée dans votre banc. Chaque créature a un ${fl(0, 'Éclat', 'ecl')}, la pastille en haut à droite : ce qu'elle rapporte une fois posée.` },
+  { title: 'Posez une créature', force: { t: 'sardine', ci: 0, s: 'N' }, focus: () => (S.ui.sel ? ['.coral-wrap:first-child .core'] : []),
     text: () => (S.ui.sel
-      ? `Posez-la sur la <b>Surface ⬆</b> de l'Anémone, l'emplacement <span class="glow">en surbrillance</span>. L'Anémone donne +3 Éclat aux Poissons posés dessus.`
+      ? `Posez-la sur la <b>Surface ⬆</b> de l'Anémone, l'emplacement <span class="glow">en surbrillance</span>. ${fl(0, 'L\'Anémone')} donne +3 Éclat aux Poissons posés dessus.`
       : `Cliquez sur une <b>Sardine</b>, ou faites-la glisser vers la <b>Surface ⬆</b> de l'Anémone.`) },
-  { title: 'Les voisins', force: { t: 'sardine', ci: 0, s: 'W' },
+  { title: 'Les voisins', force: { t: 'sardine', ci: 0, s: 'W' }, focus: () => (S.ui.sel ? ['.coral-wrap:first-child .slot.s-N'] : []),
     text: () => (S.ui.sel
-      ? `Posez-la sur le <b>Flanc ⬅</b>, juste à côté de la première : les deux Sardines se touchent.`
+      ? `Posez-la sur le <b>Flanc ⬅</b>, juste à côté de ${fl(0, 'la première')} : les deux Sardines se touchent.`
       : `Les créatures qui se touchent s'entraident. Une Sardine gagne <b>+2 Éclat par Sardine voisine</b> : prenez la deuxième Sardine de votre main.`) },
   { title: 'La Crevette nettoyeuse', force: { t: 'crevette', ci: 0, s: 'E' },
     text: () => (S.ui.sel
       ? `Posez-la sur le <b>Flanc ➡</b> : elle touche la Sardine de la Surface ⬆ et le Fond ⬇. Ce Flanc peut même toucher le Corail bulle voisin par un pont 🔗 : vous le découvrirez plus tard.`
       : `La <b>Crevette nettoyeuse</b> donne +3 Éclat à chacune de ses voisines : cliquez dessus.`) },
-  { title: 'Le Mult', force: { t: 'meduse', ci: 0, s: 'S' },
+  { title: 'Le Mult', force: { t: 'meduse', ci: 0, s: 'S' }, focus: () => (S.ui.sel ? ['.coral-wrap:first-child .slot.s-E'] : ['.coral-wrap:first-child .core .mb']),
     text: () => (S.ui.sel
-      ? `Posez-la sur le <b>Fond ⬇</b> : la Crevette lui donne +3 Éclat, et les 4 emplacements de l'Anémone seront occupés.`
-      : `Pour l'instant, l'Anémone multiplie par <b>1</b> seulement. La <b>Méduse</b> ajoute <b>+2 Mult</b> à son corail : cliquez dessus.`) },
-  { target: () => '.formula', title: 'Éclat × Mult',
-    text: () => `Chaque corail marque l'<span style="color:var(--accent2)"><b>Éclat</b></span> de ses créatures multiplié par son <span style="color:var(--mult)"><b>Mult</b></span>. Celui de l'Anémone est passé de 1 à <b>4</b> : 1 de base, +2 pour la Méduse, +1 parce que sa couronne est complète 💠. C'est en empilant le Mult que naissent les gros scores.` },
-  { title: 'Lancez la marée', launch: true, target: () => '[data-action="launch"]',
-    text: () => `Posez d'autres créatures si vous le voulez : plus le récif est rempli, plus la marée rapporte. Une erreur ? Recliquez sur une créature posée pour la reprendre. Puis cliquez sur <b>Lancer la marée</b>.`,
+      ? `Posez-la sur le <b>Fond ⬇</b> : ${fl(0, 'la Crevette')} lui donne +3 Éclat, et les 4 emplacements de l'Anémone seront occupés.`
+      : `Pour l'instant, l'Anémone ${fl(0, 'multiplie par 1', 'mlt')} seulement. La <b>Méduse</b> ajoute <b>+2 Mult</b> à son corail : cliquez dessus.`) },
+  { target: () => '.reef-row > .coral-wrap:first-child', title: 'Éclat × Mult',
+    focus: ['.coral-wrap:first-child .formula .ecl', '.coral-wrap:first-child .formula .mlt', '.coral-wrap:first-child .core .mb', '.coral-wrap:first-child .slot.s-S .bdg.mul', '.coral-wrap:first-child .crowns.tl .crown'],
+    text: () => `Chaque corail marque l'${fl(0, 'Éclat', 'ecl')} de ses créatures multiplié par son ${fl(1, 'Mult', 'mlt')}. Celui de l'Anémone est passé de 1 à <b>4</b> : ${fl(2, '1 de base', 'mlt')}, ${fl(3, '+2 pour la Méduse', 'mlt')}, ${fl(4, '+1 parce que sa couronne est complète 💠', 'mlt')}. C'est en empilant le Mult que naissent les gros scores.` },
+  { title: 'Lancez la marée', launch: true, target: () => '[data-action="launch"]', focus: ['.h-c .ghost', '.proj-btn'],
+    text: () => `Posez d'autres créatures si vous le voulez : plus le récif est rempli, plus la marée rapporte, et ${fl(0, 'la barre')} montre d'avance ${fl(1, 'ce qu\'elle ajoutera')}. Une erreur ? Recliquez sur une créature posée pour la reprendre. Puis cliquez sur <b>Lancer la marée</b>.`,
     done: () => dive().phase === 'scored' },
-  { title: 'Vous savez jouer !', final: true, target: () => '.actionbar',
-    text: () => `Les points s'ajoutent à votre score. Les créatures posées partent à la défausse, celles restées en main sont gardées pour la marée suivante.<br>Finissez cette plongée : le reste du jeu vous sera présenté pas à pas, au moment où vous le rencontrerez 💡.` },
+  { title: 'Vous savez jouer !', final: true, target: () => '.actionbar', focus: ['.tide-total'],
+    text: () => `${fl(0, 'Les points')} s'ajoutent à votre score. Les créatures posées partent à la défausse, celles restées en main sont gardées pour la marée suivante.<br>Finissez cette plongée : le reste du jeu vous sera présenté pas à pas, au moment où vous le rencontrerez 💡.` },
 ];
 // `force` : pose imposée ; l'étape attend cette créature à cet emplacement, rien d'autre
 // n'est jouable (ni autre carte, ni autre case, ni reprise d'une créature posée).
@@ -797,16 +804,39 @@ function startTuto() {
   Object.assign(meta, { tuto: true, tips: [], tipsOff: false });
   saveMeta();
 }
-function endTuto() { S.tuto = null; S.run = null; resetUI(); S.screen = 'title'; }
+function endTuto() { S.tuto = null; S.run = null; lastSpot = null; resetUI(); S.screen = 'title'; }
 
 // Bulle commune au tutoriel et aux Découvertes. `live` : le joueur agit pendant qu'elle s'affiche.
-function overlay({ title, count, text, buttons, live = false, target = null, fallback = null, kind = '' }) {
+function overlay({ title, count, text, buttons, live = false, target = null, fallback = null, kind = '', focus = [], point = false }) {
   app.insertAdjacentHTML('beforeend', `
     ${live ? '' : `<div class="tuto-block ${kind}"></div>`}
     <div class="tuto-spot ${live ? '' : 'shade'} ${kind}" hidden></div>
     <div class="tuto-bubble ${kind}"><h4>${title}<span>${count}</span></h4>
       <div>${text}</div><div class="tuto-actions">${buttons}</div></div>`);
-  placeBubble(target, fallback);
+  placeFocus(focus, kind);
+  placeBubble(target, fallback, point);
+}
+
+// Repères sur les détails cités : posés par-dessus l'écran (aucun conteneur ne les rogne),
+// un par élément trouvé. Ils s'allument un instant à l'arrivée, l'un après l'autre, puis
+// ne reviennent qu'au survol du mot qui les cite (ou à l'appui, sur écran tactile).
+function placeFocus(list, kind) {
+  const pad = 2;
+  const tone = (i) => (app.querySelector(`.tuto-bubble .tlink.mlt[data-fi="${i}"]`) ? 'mlt' : '');
+  list.forEach((sel, i) => app.querySelectorAll(sel).forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (!r.width) return;
+    app.insertAdjacentHTML('beforeend', `<div class="tuto-ping ${kind} ${tone(i)}" data-fi="${i}" style="left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px;--d:${i * 0.35}s"></div>`);
+  }));
+  const hot = (w, on) => {
+    w.classList.toggle('on', on);
+    app.querySelectorAll(`.tuto-ping[data-fi="${w.dataset.fi}"]`).forEach((p) => p.classList.toggle('hot', on));
+  };
+  app.querySelectorAll('.tuto-bubble .tlink').forEach((w) => {
+    w.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hot(w, true));
+    w.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hot(w, false));
+    w.addEventListener('pointerup', (e) => e.pointerType !== 'mouse' && hot(w, !w.classList.contains('on')));
+  });
 }
 
 // Avant de dessiner l'écran : il peut dépendre de l'étape (bouton de marée actif ou non).
@@ -820,7 +850,8 @@ function renderTuto() {
     ? '<button class="btn" data-action="tutoend">Retour au menu</button><button class="btn primary" data-action="tutofree">Continuer la plongée</button>'
     : `<button class="btn ghost" data-action="tutoend">Quitter</button>${live ? '<span class="tuto-turn">À vous de jouer !</span>' : '<button class="btn primary" data-action="tutonext">Suivant</button>'}`;
   // La carte visée n'est peut-être pas en main : on retombe alors sur la main.
-  overlay({ title: step.title, count: `${S.tuto.i + 1}/${TUTO.length}`, text: step.text(), buttons, live, target: step.target && step.target(), fallback: '.hand' });
+  const focus = typeof step.focus === 'function' ? step.focus() : step.focus || [];
+  overlay({ title: step.title, count: `${S.tuto.i + 1}/${TUTO.length}`, text: step.text(), buttons, live, target: step.target && step.target(), fallback: '.hand', focus, point: live });
 }
 
 // ── Découvertes ─────────────────────────────────────────────
@@ -831,7 +862,6 @@ function renderTuto() {
 const placing = (r) => r.phase === 'dive' && r.dive.phase === 'place';
 const stage = (r, kind) => r.phase === 'reward' && r.reward.stages[0]?.kind === kind;
 const handOf = (r, f) => r.dive.hand.map((id) => E.inst(r, id)).find((c) => f(CREATURES[c.t]));
-const likedHint = `Sous une offre, l'icône d'un de vos coraux signale qu'il la met en valeur.`;
 const TIPS = [
   // Préparation (vraie expédition)
   { id: 'draft', title: 'Préparer son expédition', target: '.draft-board', when: (r) => r.phase === 'draft',
@@ -847,7 +877,8 @@ const TIPS = [
     target: (r) => `.hand [data-t="${handOf(r, (d) => d.sed).t}"]`,
     text: `Une créature <b>Sédentaire</b> reste sur le récif d'une marée à l'autre, jusqu'à la fin de la plongée : elle marque à chaque marée, mais garde son emplacement.` },
   { id: 'crown', title: 'Les couronnes 💠', target: '.crowns.tl .crown', when: placing,
-    text: `Occupez tous les emplacements d'un corail pour former une <b>couronne complète</b> : +1 Mult. Une pastille pâle signale qu'il ne manque plus qu'une créature.` },
+    text: `Occupez tous les emplacements d'un corail pour former une <b>couronne complète</b> : ${fl(0, '+1 Mult', 'mlt')}. Une pastille pâle signale qu'il ne manque plus qu'une créature.`,
+    focus: ['.crowns.tl .crown .bv'] },
   { id: 'harmony', title: 'Harmonie et Mosaïque', after: 'crown', target: '.crowns.tl .crown:not(.hint)', when: placing,
     text: `Une couronne d'une seule famille forme une 🎯 <b>Harmonie</b> : Mult ×2. Toutes de familles différentes, une 🌈 <b>Mosaïque</b> : Mult ×1,5. La famille est l'icône en haut à gauche de chaque carte.` },
   { id: 'bridge', title: 'Les ponts 🔗', target: '.bridge.half, .bridge.on', when: placing,
@@ -860,13 +891,15 @@ const TIPS = [
   { id: 'oxygen', title: 'L’oxygène 🫧', target: '.o2', when: (r) => r.oxygen < r.oxygenMax && r.phase !== 'end',
     text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête, et rater un gardien y met fin aussitôt. Le comptoir et la nurserie en rendent.` },
   { id: 'reward', title: 'La récompense', target: '.offer', when: (r) => stage(r, 'creature'),
-    text: `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${likedHint}` },
+    text: `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${fl(0, 'Sous une offre')}, l'icône d'un de vos coraux signale qu'il la met en valeur.`,
+    focus: ['.offer-item:first-child .hints'] },
   { id: 'map', title: 'La carte', target: '.map-col', when: (r) => r.phase === 'map',
     text: `Votre route descend de haut en bas, et chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.` },
   { id: 'guardian', title: 'Le gardien 🛡️', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
     text: `Chaque zone se termine par un <b>gardien</b>, annoncé dès maintenant avec sa règle : préparez votre récif en conséquence. Le vaincre fait pousser un nouveau corail.` },
   { id: 'eco', title: 'Les écosystèmes 🌿', target: '.eco-row', when: (r) => r.phase === 'map' || r.phase === 'draft',
-    text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. <span class="glow">En vert</span>, le bonus est actif. Les offres l'indiquent par l'icône de la famille.` },
+    text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. ${fl(0, 'En vert')}, le bonus est actif. Les offres l'indiquent par l'icône de la famille.`,
+    focus: ['.eco-row .eco.on'] },
   { id: 'elite', title: 'Les plongées périlleuses 💀', target: '.map .t-elite.av', when: (r) => r.phase === 'map',
     text: `Plus dures, avec une condition imposée, mais elles rapportent un <b>artefact</b> en plus de la récompense habituelle.` },
   { id: 'artifact', title: 'Les artefacts 🏺', target: '.arts', when: (r) => r.phase === 'map' && r.artifacts.length > 0,
@@ -904,7 +937,7 @@ function renderTip() {
   const t = currentTip();
   S.tipShown = t && t.id;
   if (!t) return;
-  overlay({ title: `💡 ${t.title}`, count: `Découverte ${meta.tips.length + 1}/${TIPS.length}`, text: typeof t.text === 'function' ? t.text(S.run) : t.text, target: tipTarget(t), kind: 'tip',
+  overlay({ title: `💡 ${t.title}`, count: `Découverte ${meta.tips.length + 1}/${TIPS.length}`, text: typeof t.text === 'function' ? t.text(S.run) : t.text, target: tipTarget(t), kind: 'tip', focus: t.focus || [],
     buttons: '<button class="btn ghost" data-action="tipsoff">Ne plus afficher</button><button class="btn primary" data-action="tipok">Compris</button>' });
 }
 function readTip(id) {
@@ -912,7 +945,9 @@ function readTip(id) {
   saveMeta();
 }
 
-function placeBubble(sel, fallback) {
+// Le projecteur glisse de la cible précédente à la nouvelle : l'œil suit le mouvement.
+let lastSpot = null;
+function placeBubble(sel, fallback, point = false) {
   const bubble = app.querySelector('.tuto-bubble');
   const spot = app.querySelector('.tuto-spot');
   const clamp = (v, max) => Math.max(8, Math.min(v, max));
@@ -923,17 +958,38 @@ function placeBubble(sel, fallback) {
   else {
     const r = el.getBoundingClientRect();
     spot.hidden = false;
-    Object.assign(spot.style, { left: `${r.left - 4}px`, top: `${r.top - 4}px`, width: `${r.width + 8}px`, height: `${r.height + 8}px` });
+    const box = { left: `${r.left - 4}px`, top: `${r.top - 4}px`, width: `${r.width + 8}px`, height: `${r.height + 8}px` };
+    const moved = lastSpot && Object.keys(box).some((k) => lastSpot[k] !== box[k]);
+    Object.assign(spot.style, moved ? lastSpot : box);
+    if (moved) { void spot.offsetWidth; spot.classList.add('glide'); Object.assign(spot.style, box); }
+    lastSpot = box;
+    // Action attendue : une main désigne l'endroit, au-dessus de la cible (en dessous si elle touche le haut).
+    // Pas sur un emplacement du récif : il pulse déjà, comme partout dans le jeu.
+    if (point && !el.matches('.slot')) {
+      const up = r.top < 60;
+      const y = up ? r.bottom + 4 : r.top - 4;
+      app.insertAdjacentHTML('beforeend', `<div class="tuto-point ${up ? 'up' : ''}" style="left:${r.left + r.width / 2}px;top:${y}px">${up ? '👆' : '👇'}</div>`);
+    }
     // Grande cible, ou pas la place au-dessus ni en dessous : la bulle se met à côté, sans la couvrir.
     const roomV = Math.max(innerHeight - r.bottom, r.top) >= h + 20;
     const roomR = innerWidth - r.right >= w + 20; const roomL = r.left >= w + 20;
-    if ((roomR || roomL) && (!roomV || r.height > innerHeight * 0.6)) {
-      left = roomR ? r.right + 12 : r.left - w - 12;
-      top = r.top + (r.height - h) / 2;
-    } else {
-      left = r.left + r.width / 2 - w / 2;
-      top = innerHeight - r.bottom >= r.top ? r.bottom + 12 : r.top - h - 12;
-    }
+    const gap = point && !el.matches('.slot') ? 50 : 12; // la place de la main qui pointe
+    const cx = r.left + r.width / 2 - w / 2; const cy = r.top + (r.height - h) / 2;
+    const below = [cx, r.bottom + gap]; const above = [cx, r.top - h - gap];
+    let first;
+    if ((roomR || roomL) && (!roomV || r.height > innerHeight * 0.6)) first = [roomR ? r.right + 12 : r.left - w - 12, cy];
+    else first = innerHeight - r.bottom >= r.top ? below : above;
+    // Sur un petit écran, cette place peut cacher un repère cité par le texte (ou la main qui
+    // pointe) : on essaie alors les autres côtés, puis les bords de l'écran, et on garde la
+    // première place libre (à défaut, celle qui cache le moins).
+    const keep = [...app.querySelectorAll('.tuto-ping, .tuto-point')].map((e) => e.getBoundingClientRect());
+    const over = (x, y, b) => Math.max(0, Math.min(x + w, b.right) - Math.max(x, b.left)) * Math.max(0, Math.min(y + h, b.bottom) - Math.max(y, b.top));
+    const cost = ([x, y]) => keep.reduce((n, b) => n + over(x, y, b) * 10, 0) + over(x, y, r);
+    const edges = [8, innerWidth - w - 8];
+    const tries = [first, below, above, [r.right + 12, cy], [r.left - w - 12, cy],
+      ...edges.flatMap((x) => [[x, below[1]], [x, above[1]], [x, cy], [x, 8], [x, innerHeight - h - 8]])]
+      .map(([x, y]) => [clamp(x, innerWidth - w - 8), clamp(y, innerHeight - h - 8)]);
+    [left, top] = tries.reduce((best, t) => (cost(t) < cost(best) ? t : best));
   }
   bubble.style.left = `${clamp(left, innerWidth - w - 8)}px`;
   bubble.style.top = `${clamp(top, innerHeight - h - 8)}px`;
