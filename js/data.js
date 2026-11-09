@@ -331,27 +331,38 @@ export const CARD_TYPES = {
   mutation: { name: 'Mutation', icon: '🧬' },
 };
 
+// ── Catégories de définitions, que le joueur peut masquer dans les Options ──
+// `ref` : les cartes citées par un texte (créatures, coraux, artefacts), et non des mots-clés.
+export const GLOSS_CATS = {
+  place:  { name: 'Positions sur le récif', icon: '🧭' },
+  crown:  { name: 'Bonus de couronne', icon: '👑' },
+  family: { name: 'Familles', icon: '🐚' },
+  skill:  { name: 'Capacités et règles', icon: '📖' },
+  ref:    { name: 'Cartes citées', icon: '🃏', text: 'Les créatures, coraux et artefacts qu’un texte mentionne.' },
+};
+
 // ── Mots-clés : leur définition s'affiche dans les popups dès qu'un texte les cite.
 // `match` est une expression régulière, sensible à la casse. Le vocabulaire de base (Éclat, Mult) n'y figure pas.
 export const KEYWORDS = [
-  { name: 'Sédentaire', match: 'Sédentaires?', text: 'Reste sur le récif d’une marée à l’autre, jusqu’à la fin de la plongée. Après sa première marée, elle ne peut plus être déplacée.' },
-  { name: 'Éphémère', match: 'Éphémères?', text: 'Une fois jouée, elle sort de la plongée en cours. Elle revient dans votre pioche à la plongée suivante.' },
-  { name: 'Fidèle', match: 'Fidèles?', text: 'Après la marée, elle revient directement en main au lieu de partir à la défausse.' },
-  { name: 'Éclosion', match: 'Éclosion', text: 'Après le nombre indiqué de marées jouées sur le récif, la créature se transforme pour toujours. Elle garde ses bonus et sa mutation.' },
-  { name: 'Grandit', match: 'Grandit', text: 'Le bonus gagné est permanent : il reste acquis jusqu’à la fin de l’expédition.' },
-  { name: 'Prédateur', match: 'Prédateurs?', text: 'Se nourrit de ses voisins. Le Requin réduit au silence les Poissons voisins le temps de la marée ; l’Orque retire sa proie du banc pour toujours.' },
-  { name: 'Parasite', match: 'Parasites?', text: 'Carte nuisible qui encombre votre banc. Relâchez-la au comptoir, ou faites-la retirer par un Orque ou un Labre nettoyeur.' },
-  { name: 'Pose', match: 'Pose', text: 'Effet immédiat au moment où vous posez la créature. Elle ne peut alors plus être déplacée pendant cette marée.' },
-  { name: 'Voisin', match: '[Vv]oisin(?:e|s|es)?', text: 'Les deux emplacements qui touchent la créature sur sa couronne. Un Flanc ➡ touche aussi le Flanc ⬅ du corail suivant.' },
-  { name: 'Opposée', match: '[Oo]pposée?s?', text: 'L’emplacement d’en face sur la même couronne : Surface ⬆ et Fond ⬇, ou les deux Flancs ⬅ ➡.' },
-  { name: 'Couronne complète', match: '[Cc]ouronnes? complètes?|[Cc]ouronne est complète', text: 'Tous les emplacements d’un corail sont occupés, ce qui lui donne +1 Mult.' },
-  { name: 'Harmonie', match: 'Harmonie', text: 'Couronne complète d’une seule famille : Mult ×2.' },
-  { name: 'Mosaïque', match: 'Mosaïque', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
-  { name: 'Remous', match: 'Remous', text: 'Défaussez des créatures de votre main pour en piocher autant. Vous avez un nombre limité de Remous par plongée.' },
-  { name: 'Amélioration ★', match: 'améliorée ★|Amélioration ★|Améliorez une créature ★', text: '+50 % d’Éclat de base, définitivement.' },
+  { name: 'Sédentaire', cat: 'skill', match: 'Sédentaires?', text: 'Reste sur le récif d’une marée à l’autre, jusqu’à la fin de la plongée. Après sa première marée, elle ne peut plus être déplacée.' },
+  { name: 'Éphémère', cat: 'skill', match: 'Éphémères?', text: 'Une fois jouée, elle sort de la plongée en cours. Elle revient dans votre pioche à la plongée suivante.' },
+  { name: 'Fidèle', cat: 'skill', match: 'Fidèles?', text: 'Après la marée, elle revient directement en main au lieu de partir à la défausse.' },
+  { name: 'Éclosion', cat: 'skill', match: 'Éclosion', text: 'Après le nombre indiqué de marées jouées sur le récif, la créature se transforme pour toujours. Elle garde ses bonus et sa mutation.' },
+  { name: 'Grandit', cat: 'skill', match: 'Grandit', text: 'Le bonus gagné est permanent : il reste acquis jusqu’à la fin de l’expédition.' },
+  { name: 'Prédateur', cat: 'skill', match: 'Prédateurs?', text: 'Se nourrit de ses voisins. Le Requin réduit au silence les Poissons voisins le temps de la marée ; l’Orque retire sa proie du banc pour toujours.' },
+  { name: 'Parasite', cat: 'skill', match: 'Parasites?', text: 'Carte nuisible qui encombre votre banc. Relâchez-la au comptoir, ou faites-la retirer par un Orque ou un Labre nettoyeur.' },
+  { name: 'Pose', cat: 'skill', match: 'Pose', text: 'Effet immédiat au moment où vous posez la créature. Elle ne peut alors plus être déplacée pendant cette marée.' },
+  { name: 'Voisin', cat: 'place', match: '[Vv]oisin(?:e|s|es)?', text: 'Les deux emplacements qui touchent la créature sur sa couronne. Un Flanc ➡ touche aussi le Flanc ⬅ du corail suivant.' },
+  { name: 'Opposée', cat: 'place', match: '[Oo]pposée?s?', text: 'L’emplacement d’en face sur la même couronne : Surface ⬆ et Fond ⬇, ou les deux Flancs ⬅ ➡.' },
+  { name: 'Couronne complète', cat: 'place', match: '[Cc]ouronnes? complètes?|[Cc]ouronne est complète', text: 'Tous les emplacements d’un corail sont occupés, ce qui lui donne +1 Mult.' },
+  { name: 'Harmonie', cat: 'crown', match: 'Harmonie', text: 'Couronne complète d’une seule famille : Mult ×2.' },
+  { name: 'Mosaïque', cat: 'crown', match: 'Mosaïque', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
+  { name: 'Remous', cat: 'skill', match: 'Remous', text: 'Défaussez des créatures de votre main pour en piocher autant. Vous avez un nombre limité de Remous par plongée.' },
+  { name: 'Amélioration ★', cat: 'skill', match: 'améliorée ★|Amélioration ★|Améliorez une créature ★', text: '+50 % d’Éclat de base, définitivement.' },
   // Une définition par famille, avec ses membres tirés des créatures (hors « Toutes familles »).
   ...Object.entries(FAMILIES).filter(([f]) => f !== 'nuisible').map(([f, F]) => ({
     name: F.name,
+    cat: 'family',
     match: `${F.name}${F.name.endsWith('eau') ? 'x?' : 's?'}`,
     text: `Famille ${F.icon} : ${Object.values(CREATURES).filter((c) => c.fam === f && !c.allFam).map((c) => c.name).join(', ')}.`,
   })),

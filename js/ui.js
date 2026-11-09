@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 import {
   SLOTS, SLOT_LABEL, SLOT_ICON, FAMILIES, RARITY, CREATURES, CORALS, CROWNS, ARTIFACTS,
-  CONDITIONS, ZONES, NODE_TYPES, DIVERS, DEPTHS, ROWS_PER_ZONE, MUTATIONS, BASE, CARD_TYPES, KEYWORDS,
+  CONDITIONS, ZONES, NODE_TYPES, DIVERS, DEPTHS, ROWS_PER_ZONE, MUTATIONS, BASE, CARD_TYPES, KEYWORDS, GLOSS_CATS,
 } from './data.js';
 import * as E from './engine.js';
 
@@ -24,12 +24,29 @@ function localKeys() {
 }
 
 // tips : Découvertes déjà lues ; tipsOff : le joueur les a masquées.
-const newMeta = () => ({ runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {}, tips: [], tipsOff: false });
+// glossOff : catégories de définitions (GLOSS_CATS) que le joueur ne veut plus voir dans les infobulles.
+// animSpeed : clé de ANIM_SPEEDS ; tipMode : clé de TIP_MODES.
+const newMeta = () => ({ runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {}, tips: [], tipsOff: false, glossOff: [],
+  animSpeed: 'normal', tipMode: 'instant' });
 const storedMeta = loadJSON(META_KEY, {});
 const meta = Object.assign(newMeta(), storedMeta);
 // Un joueur qui a déjà des expéditions derrière lui ne reçoit pas les Découvertes d'office.
 if (storedMeta.tipsOff === undefined) meta.tipsOff = meta.runs > 0;
 const saveMeta = () => saveJSON(META_KEY, meta);
+const glossOn = (cat) => !meta.glossOff.includes(cat);
+
+// Vitesse des animations de score : un facteur appliqué aux durées (0 = résultat affiché d'emblée).
+const ANIM_SPEEDS = { normal: { name: 'Normale', k: 1 }, fast: { name: 'Rapide', k: 0.4 }, off: { name: 'Instantanée', k: 0 } };
+const animK = () => (ANIM_SPEEDS[meta.animSpeed] || ANIM_SPEEDS.normal).k;
+function applyAnimSpeed() {
+  document.documentElement.style.setProperty('--as', animK());
+  document.documentElement.classList.toggle('anim-off', animK() === 0);
+}
+applyAnimSpeed();
+
+// Affichage des infobulles au survol. Le tutoriel, qui fait survoler des éléments, reste en immédiat.
+const TIP_MODES = { instant: 'Immédiat', short: 'Avec délai', click: 'Au clic' };
+const tipMode = () => (S.tuto || !TIP_MODES[meta.tipMode] ? 'instant' : meta.tipMode);
 
 const S = {
   screen: 'title',
@@ -162,6 +179,7 @@ function topbar(extra = '') {
     <div class="tb-r"><span class="arts">${r.artifacts.map(artifactChip).join('')}</span>
       <button class="btn tiny" data-action="bag">Banc (${r.bag.length})</button>
       <button class="btn tiny" data-action="rules">?</button>
+      <button class="btn tiny" data-action="options" aria-label="Options" data-tip="Options">⚙</button>
       <button class="btn tiny" data-action="menu">Menu</button></div>
   </header>`;
 }
@@ -208,10 +226,9 @@ function renderTitle() {
     </div>
     <div class="row">
       ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
-      <button class="btn ghost" data-action="tipstoggle" data-tip="${esc(`Découvertes — Les règles avancées vous sont présentées une à une, la première fois que vous les rencontrez. | ${meta.tips.length}/${TIPS.length} déjà lues.`)}">💡 Découvertes : ${meta.tipsOff ? 'non' : 'oui'}</button>
       <button class="btn ghost" data-action="rules">Règles</button>
       <button class="btn ghost" data-action="bestiary">Bestiaire ${meta.seenC.length}/${Object.keys(CREATURES).length}</button>
-      <button class="btn ghost" data-action="wipeask" ${localKeys().length ? '' : 'disabled'}>🗑 Effacer mes données</button>
+      <button class="btn ghost" data-action="options">⚙ Options</button>
     </div>
     <div class="meta">Expéditions : ${meta.runs} · Victoires : ${meta.wins} · Gardiens vaincus : ${meta.bosses} · Plus profond : ${ZONES[meta.bestZone].name}</div>
     ${notice ? `<div class="notice">${esc(notice)}</div>` : ''}
@@ -328,7 +345,7 @@ function renderDive() {
       const can = placing && !cell.lock && !tutoForce();
       return `<div class="slot s-${s} full ${can ? 'movable' : ''} ${bridged(ci, s) ? 'bridged' : ''}" style="--fam:${F.color}" ${can ? `data-action="unplace" data-ci="${ci}" data-s="${s}"` : ''} data-zoom>
         ${zoomTpl(creatureCard(c))}<span class="em">${def.emoji}</span><span class="nm">${def.name}${c.star ? ' ★' : ''}</span>
-        <span class="pts ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35}s">${fmt(bk.pts || 0)}</span>${badges}</div>`;
+        <span class="pts ${!placing ? 'pop' : ''}" style="animation-delay:calc(${ci * 0.35}s * var(--as, 1))">${fmt(bk.pts || 0)}</span>${badges}</div>`;
     }
     if (E.isBlocked(r, ci, s)) {
       const kr = d.blocked.includes(key);
@@ -357,7 +374,7 @@ function renderDive() {
       <div class="crowns tl">${crownB}</div><div class="crowns tr">${otherB}</div>
       ${bridge}
     </div>
-    <div class="formula ${ci2.halved ? 'halved' : ''} ${!placing ? 'pop' : ''}" style="animation-delay:${ci * 0.35 + 0.15}s">
+    <div class="formula ${ci2.halved ? 'halved' : ''} ${!placing ? 'pop' : ''}" style="animation-delay:calc(${ci * 0.35 + 0.15}s * var(--as, 1))">
       <span class="ecl" data-tip="Éclat : somme des créatures">${fmt(ci2.eclat)}</span> × <span class="mlt" data-tip="Mult total">${ci2.multTot}</span> = <b>${fmt(ci2.score)}</b>
       ${ci2.halved ? `<span class="ign" data-tip="${esc(`${CONDITIONS.leviathan.name} — ${CONDITIONS.leviathan.text}`)}">🐉 ÷2</span>` : ''}
     </div></div>`;
@@ -613,6 +630,45 @@ const byKind = (ta, tb) => {
 };
 const bySpecies = (a, b) => byKind(a.t, b.t) || (b.star || 0) - (a.star || 0) || (b.bonus || 0) - (a.bonus || 0);
 
+// ── Options ─────────────────────────────────────────────────
+// Un interrupteur accessible : le libellé dit ce qu'il règle, l'état est porté par aria-checked.
+function optSwitch(on, action, title, sub, extra = '') {
+  return `<button class="opt" role="switch" aria-checked="${on}" data-action="${action}" ${extra}>
+    <span class="opt-tx"><span class="opt-t">${title}</span><span class="opt-s">${sub}</span></span>
+    <span class="sw" aria-hidden="true"></span></button>`;
+}
+// Choix exclusif : un groupe de boutons radio présenté comme un sélecteur segmenté.
+function optChoice(title, sub, action, cur, choices) {
+  return `<div class="opt opt-c"><span class="opt-tx"><span class="opt-t">${title}</span><span class="opt-s">${sub}</span></span>
+    <span class="seg" role="radiogroup" aria-label="${esc(title)}">${Object.entries(choices).map(([k, label]) =>
+    `<button role="radio" aria-checked="${k === cur}" data-action="${action}" data-v="${k}">${label}</button>`).join('')}</span></div>`;
+}
+const TIP_MODE_TEXT = {
+  instant: 'Elles s’affichent dès que le pointeur passe dessus.',
+  short: 'Elles attendent un court instant sous le pointeur : plus de bulles qui surgissent en déplaçant une créature.',
+  click: 'Cliquez sur une pastille, ou faites un clic droit sur une carte ou un bouton.',
+};
+function optionsHTML() {
+  const terms = (cat) => KEYWORDS.filter((k) => k.cat === cat).map((k) => k.name).join(', ');
+  const gloss = Object.entries(GLOSS_CATS).map(([cat, C]) => optSwitch(glossOn(cat), 'glosstoggle', `${C.icon} ${C.name}`,
+    esc(C.text || terms(cat)), `data-cat="${cat}"`)).join('');
+  return `<div class="modal-bg" data-action="closemodal"><div class="modal options" data-stop>
+    <h2>⚙ Options</h2>
+    <h3>Animations</h3>
+    <div class="opt-list">${optChoice('⏩ Vitesse', 'Apparition des scores et décompte du total à la fin d’une marée.', 'animspeed', meta.animSpeed,
+      Object.fromEntries(Object.entries(ANIM_SPEEDS).map(([k, v]) => [k, v.name])))}</div>
+    <h3>Infobulles</h3>
+    ${noHover() ? '' : `<div class="opt-list">${optChoice('🖱️ Affichage', TIP_MODE_TEXT[meta.tipMode] || TIP_MODE_TEXT.instant, 'tipmode', meta.tipMode, TIP_MODES)}</div>`}
+    <p class="muted">Quand un texte cite un terme, sa définition s’affiche à côté. Masquez celles que vous connaissez déjà pour alléger l’écran.</p>
+    <div class="opt-list">${gloss}</div>
+    <h3>Aide</h3>
+    <div class="opt-list">${optSwitch(!meta.tipsOff, 'tipstoggle', '💡 Découvertes',
+      esc(`Les règles avancées vous sont présentées une à une, la première fois que vous les rencontrez. ${meta.tips.length}/${TIPS.length} déjà lues.`))}</div>
+    <h3>Données</h3>
+    <div class="row"><button class="btn ghost" data-action="wipeask" ${localKeys().length ? '' : 'disabled'}>🗑 Effacer mes données</button></div>
+    <button class="btn primary" data-action="closemodal">Fermer</button></div></div>`;
+}
+
 function modalHTML() {
   const r = S.run;
   if (r && r.pending) {
@@ -689,14 +745,16 @@ function modalHTML() {
       'vos statistiques et vos scores de plongée du jour',
       'les plongeurs et les Profondeurs débloqués',
       'votre bestiaire',
+      'vos options',
     ].filter(Boolean);
     return `<div class="modal-bg" data-action="closemodal"><div class="modal" data-stop>
       <h2>🗑 Effacer vos données ?</h2>
       <p class="wipe-tx">Le jeu reviendra à zéro sur ce navigateur. Cette action est définitive et supprimera :</p>
       <ul class="wipe-list">${lost.map((l) => `<li>${l}</li>`).join('')}</ul>
-      <div class="row"><button class="btn primary" data-action="closemodal">Annuler</button>
+      <div class="row"><button class="btn primary" data-action="options">Annuler</button>
         <button class="btn danger" data-action="wipeok">Tout effacer</button></div></div></div>`;
   }
+  if (S.modal === 'options') return optionsHTML();
   if (S.modal === 'bag') {
     // Pendant une plongée, le banc se lit par pile. Tri par espèce dans chacune :
     // l'ordre réel de la pioche reste secret.
@@ -1060,11 +1118,13 @@ function glossOf(host) {
   else if (kind === 'a') { self = a[0]; text = ARTIFACTS[a[0]].text; }
   else if (kind === 'm') { text = MUTATIONS[a[0]].text; }
   const main = scanText(text);
-  for (const x of main.refs) {
-    if (x.key !== self && !links.some((l) => l.key === x.key)) links.push({ key: x.key, label: REF_LABEL[x.kind], html: refHTML(x) });
+  // Cartes citées masquées : ni leur carte, ni les mots-clés de leur texte.
+  const refs = glossOn('ref') ? main.refs.filter((x) => x.key !== self) : [];
+  for (const x of refs) {
+    if (!links.some((l) => l.key === x.key)) links.push({ key: x.key, label: REF_LABEL[x.kind], html: refHTML(x) });
   }
   const notes = [...new Set([...main.keywords, ...scanText(linkedText).keywords,
-    ...main.refs.filter((x) => x.key !== self).flatMap((x) => scanText(x.def.text).keywords)])];
+    ...refs.flatMap((x) => scanText(x.def.text).keywords)])].filter((k) => glossOn(k.cat));
   return { links, notes };
 }
 
@@ -1118,8 +1178,8 @@ function tipNotes(title, body) {
     return n;
   };
   return [
-    ...keywords.filter((k) => !head.keywords.includes(k)).map((k) => note(k.name, k.text)),
-    ...refs.filter((x) => !head.refs.includes(x)).map((x) => note(`${x.def.emoji} ${x.def.name}`, x.def.text)),
+    ...keywords.filter((k) => glossOn(k.cat) && !head.keywords.includes(k)).map((k) => note(k.name, k.text)),
+    ...(glossOn('ref') ? refs : []).filter((x) => !head.refs.includes(x)).map((x) => note(`${x.def.emoji} ${x.def.name}`, x.def.text)),
   ];
 }
 function showTip(el) {
@@ -1145,17 +1205,46 @@ function showTip(el) {
   tipEl.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
   tipEl.style.setProperty('--ax', `${Math.max(14, Math.min(cx - left, w - 14))}px`);
 }
-function hideHover() { hideZoom(); hideTip(); }
-document.addEventListener('mouseover', (ev) => {
-  if (drag?.ghost) return;
-  const zoom = ev.target.closest('[data-zoom]');
-  let tip = ev.target.closest('[data-tip]');
+// Bulle en attente (mode « Avec délai ») : elle ne s'ouvre que si le pointeur reste sur le même élément.
+let hoverTimer = null;
+let hoverNext = null;
+function hoverCancel() { clearTimeout(hoverTimer); hoverNext = null; }
+function hoverShow(el, show) {
+  if (hoverNext === el) return;
+  hoverCancel();
+  if (tipMode() === 'instant') { show(el); return; }
+  hoverNext = el;
+  hoverTimer = setTimeout(() => { hoverNext = null; if (el.isConnected && !drag?.ghost) show(el); }, 350);
+}
+function hideHover() { hoverCancel(); hideZoom(); hideTip(); }
+// Ce que montre un élément : la bulle d'une pastille, ou l'aperçu agrandi d'une carte.
+function hoverTarget(target) {
+  const zoom = target.closest('[data-zoom]');
+  let tip = target.closest('[data-tip]');
   // Sur une mini-carte, l'aperçu agrandi dit déjà tout ; une pastille posée sur une case garde sa bulle.
   if (tip && zoom && (!zoom.contains(tip) || zoom.matches('.card.mini'))) tip = null;
-  if (tip) { hideZoom(); showTip(tip); return; }
+  return { tip, zoom };
+}
+document.addEventListener('mouseover', (ev) => {
+  if (drag?.ghost) return;
+  const { tip, zoom } = hoverTarget(ev.target);
+  // Au clic : le survol ne fait que refermer ce que le pointeur a quitté.
+  if (tipMode() === 'click') {
+    if (tip !== tipFor) hideTip();
+    if (tip || zoom !== zoomFor) hideZoom();
+    return;
+  }
+  if (tip) { hideZoom(); hoverShow(tip, showTip); return; }
   hideTip();
-  if (!zoom) hideZoom();
-  else if (zoom !== zoomFor) showZoom(zoom);
+  if (!zoom) { hideZoom(); hoverCancel(); } else if (zoom !== zoomFor) hoverShow(zoom, showZoom); else hoverCancel();
+});
+// Au clic, le clic droit ouvre la bulle de n'importe quel élément, même d'une carte ou d'un bouton.
+document.addEventListener('contextmenu', (ev) => {
+  if (tipMode() !== 'click') return;
+  const { tip, zoom } = hoverTarget(ev.target);
+  if (!tip && !zoom) return;
+  ev.preventDefault();
+  if (tip) { hideZoom(); showTip(tip); } else { hideTip(); showZoom(zoom); }
 });
 document.documentElement.addEventListener('mouseleave', hideHover);
 document.addEventListener('focusin', (ev) => {
@@ -1169,7 +1258,7 @@ document.addEventListener('scroll', hideHover, true);
 // ── Rendu ───────────────────────────────────────────────────
 const noHover = () => matchMedia('(hover: none)').matches;
 // Signature d'un élément interactif, pour lui rendre le focus après un nouveau rendu.
-const FOCUS_KEYS = ['action', 'id', 'ci', 's', 'row', 'lane', 'kind', 'i', 'w', 'k', 'm', 'slot', 'go'];
+const FOCUS_KEYS = ['action', 'id', 'ci', 's', 'row', 'lane', 'kind', 'i', 'w', 'k', 'm', 'slot', 'go', 'cat', 'v'];
 const focusSig = (el) => (el && el.dataset && el.dataset.action ? FOCUS_KEYS.map((k) => el.dataset[k] ?? '').join('|') : null);
 function keyboardReady(sig) {
   for (const el of app.querySelectorAll('[data-action]:not(button):not(.modal-bg)')) {
@@ -1200,11 +1289,13 @@ function render() {
 }
 
 function animateCounts() {
+  const dur = 900 * animK();
+  if (!dur) return; // le total est déjà écrit en entier
   for (const el of app.querySelectorAll('.tide-total[data-count]')) {
     const to = +el.dataset.count;
     const t0 = performance.now();
     const step = (t) => {
-      const k = Math.min(1, (t - t0) / 900);
+      const k = Math.min(1, (t - t0) / dur);
       el.textContent = `+${fmt(to * (1 - (1 - k) ** 3))}`;
       if (k < 1) requestAnimationFrame(step);
     };
@@ -1303,6 +1394,14 @@ const handlers = {
   tipok: () => { readTip(S.tipShown); S.tipLast = S.tipShown; S.tipMoment = tipMoment(S.run); },
   tipsoff: () => { meta.tipsOff = true; saveMeta(); },
   tipstoggle: () => { meta.tipsOff = !meta.tipsOff; saveMeta(); },
+  options: () => { S.modal = 'options'; },
+  animspeed: (el) => { meta.animSpeed = el.dataset.v; saveMeta(); applyAnimSpeed(); },
+  tipmode: (el) => { meta.tipMode = el.dataset.v; saveMeta(); },
+  glosstoggle: (el) => {
+    const c = el.dataset.cat;
+    meta.glossOff = glossOn(c) ? [...meta.glossOff, c] : meta.glossOff.filter((x) => x !== c);
+    saveMeta();
+  },
 
   node: (el) => {
     const key = `${el.dataset.row}:${el.dataset.lane}`;
@@ -1486,8 +1585,8 @@ app.addEventListener('click', (ev) => {
   if (swallowClick) return;
   const el = ev.target.closest('[data-action]');
   if (!el || (el.classList.contains('modal-bg') && ev.target.closest('[data-stop]'))) {
-    // Sans survol (écran tactile), toucher une pastille ou une carte affiche sa bulle.
-    if (noHover()) {
+    // Sans survol (écran tactile) ou en mode « Au clic », toucher une pastille ou une carte affiche sa bulle.
+    if (noHover() || tipMode() === 'click') {
       const tip = ev.target.closest('[data-tip]');
       const zoom = ev.target.closest('[data-zoom]');
       if (tip && !(zoom && zoom.matches('.card.mini'))) { hideZoom(); showTip(tip); } else if (zoom) { hideTip(); showZoom(zoom); } else hideHover();
