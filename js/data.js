@@ -89,7 +89,7 @@ export const CREATURES = {
     text: 'Grandit : +2 Éclat permanent après chaque marée où sa couronne est complète.',
     after: (x, B) => { if (B.full(x.ci)) x.inst.bonus += 2; } },
   langouste: { name: 'Langouste royale', emoji: '👑', fam: 'crustace', pts: 4, rar: 'r',
-    text: 'Mult du corail ×2 s’il porte au moins 3 Crustacés.',
+    text: 'Mult du corail ×2 s’il porte au moins 3 Crustacés. Les ×2 de créatures ne se cumulent pas sur un corail.',
     xmult: (x, B) => (B.on(x.ci).filter((n) => fam(n, 'crustace')).length >= 3 ? 2 : 1) },
 
   // ── Mollusques ──
@@ -118,7 +118,7 @@ export const CREATURES = {
     text: '+5 Mult, mais −2 Éclat à chacun de ses voisins.',
     mult: () => 5, pre: (x) => { for (const n of x.nbs) n.aura -= 2; } },
   pyrosome: { name: 'Pyrosome', emoji: '🕯️', fam: 'cnidaire', pts: 1, rar: 'r',
-    text: 'Mult du corail ×2 si sa couronne est complète.',
+    text: 'Mult du corail ×2 si sa couronne est complète. Les ×2 de créatures ne se cumulent pas sur un corail.',
     xmult: (x, B) => (B.full(x.ci) ? 2 : 1) },
 
   // ── Mammifères ──
@@ -133,9 +133,12 @@ export const CREATURES = {
   baleine: { name: 'Baleine', emoji: '🐋', fam: 'mammifere', pts: 10, rar: 'r',
     text: 'Chant : +1 Mult à tous les coraux.' },
   orque: { name: 'Orque', emoji: '🐳', fam: 'mammifere', pts: 6, rar: 'r',
-    text: 'Prédateur : après la marée, dévore son voisin le plus faible (retiré du banc pour toujours) et gagne +4 Éclat permanent.',
+    text: 'Prédateur : après la marée, dévore son voisin le plus faible (retiré du banc pour toujours) et gagne +4 Éclat permanent. Il choisit un Parasite s’il le peut, épargne les voisins qui donnent du Mult et laisse toujours au moins 6 créatures dans le banc.',
     after: (x, B, out) => {
-      const prey = x.nbs.filter((n) => n.t !== 'orque' && !out.devoured.has(n.id))
+      if (B.bagCount - out.devoured.size <= BASE.minBag) return;
+      const nbs = x.nbs.filter((n) => n.t !== 'orque' && !out.devoured.has(n.id));
+      const pests = nbs.filter((n) => n.def.parasite);
+      const prey = (pests.length ? pests : nbs.filter((n) => n.mult <= 0 && n.xm <= 1))
         .sort((a, b) => a.pts - b.pts)[0];
       if (prey) { out.devoured.add(prey.id); x.inst.bonus += 4; out.notes.push(`🐳 L’Orque dévore ${prey.def.name} !`); }
     } },
@@ -153,8 +156,8 @@ export const CREATURES = {
     text: 'Au Fond ⬇ : +5 Éclat.',
     eclat: (x) => (x.slot === 'S' ? 5 : 0) },
   oursin: { name: 'Oursin', emoji: '🌰', fam: 'echino', pts: 1, rar: 'u', sed: true,
-    text: 'Sédentaire. +1 Mult par Échinoderme posé dans le récif.',
-    mult: (x, B) => B.countFam('echino') },
+    text: 'Sédentaire. +1 Mult par Échinoderme posé sur son corail.',
+    mult: (x, B) => B.on(x.ci).filter((n) => fam(n, 'echino')).length },
   manchot: { name: 'Manchot', emoji: '🐧', fam: 'oiseau', pts: 1, rar: 'u',
     text: 'Pose : piochez 2 créatures.', place: { draw: 2 } },
 
@@ -278,7 +281,8 @@ export const CORALS = {
     text: 'Aucun effet, mais Mult de base élevé.' },
   eponge: { name: 'Éponge', emoji: '🧽', color: '#90be6d', mult: 1, rar: 'c',
     text: '+1 Mult par famille différente posée dessus.',
-    multB: (xs) => (xs.some((x) => x.allFam) ? 8 : new Set(xs.map((x) => x.def.fam)).size) },
+    // Une créature de toutes familles compte pour une famille de plus (et non pour toutes).
+    multB: (xs) => new Set(xs.filter((x) => !x.allFam).map((x) => x.def.fam)).size + xs.filter((x) => x.allFam).length },
   herbier: { name: 'Herbier', emoji: '🌾', color: '#52b788', mult: 2, rar: 'u', likes: ['sed'],
     text: 'Les Sédentaires posés dessus ont +4 Éclat.',
     eclatB: (x) => (x.def.sed ? 4 : 0) },
@@ -369,14 +373,18 @@ export const KEYWORDS = [
 ];
 
 // ── Conditions (élites et gardiens) ─────────────────────────
+// x : effet moyen de la condition sur le score d'une plongée, mesuré par simulation
+// (même plongée rejouée avec et sans elle). L'objectif est multiplié d'autant, pour que
+// chaque condition pèse à peu près le même poids ; eliteX et bossX remontent le tout.
+// Le Kraken pèse bien plus lourd quand il n'y a que 2 coraux.
 export const CONDITIONS = {
-  kraken:   { name: 'Le Kraken', emoji: '🪢', text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules : un corail touché ne peut pas avoir de couronne complète.' },
-  tempete:  { name: 'La Tempête', emoji: '🌪️', text: 'Après chaque marée, votre main est emportée (défaussée). Les créatures Fidèles reviennent quand même.' },
-  leviathan:{ name: 'Le Léviathan', emoji: '🐉', text: 'Le corail qui marque le plus ne compte qu’à moitié.' },
-  glace:    { name: 'Courant glacé', emoji: '🧊', text: 'Aucun Remous, et 1 créature de moins en main.' },
-  fantome:  { name: 'Banc fantôme', emoji: '👻', text: 'Aucun bonus de Couronne (complète, Harmonie, Mosaïque).' },
-  pression: { name: 'Haute pression', emoji: '🌑', text: 'Chaque corail a −1 Mult (minimum 1).' },
-  siphon:   { name: 'Le Siphon', emoji: '🕳️', text: 'Une marée de moins.' },
+  kraken:   { name: 'Le Kraken', emoji: '🪢', x: (run) => (run.corals.length <= 2 ? 0.6 : 0.85), text: 'À chaque marée, 2 emplacements libres sont bloqués par des tentacules : un corail touché ne peut pas avoir de couronne complète.' },
+  tempete:  { name: 'La Tempête', emoji: '🌪️', x: 1, text: 'Après chaque marée, votre main est emportée (défaussée). Les créatures Fidèles reviennent quand même.' },
+  leviathan:{ name: 'Le Léviathan', emoji: '🐉', x: 0.63, text: 'Le corail qui marque le plus ne compte qu’à moitié.' },
+  glace:    { name: 'Courant glacé', emoji: '🧊', x: 0.8, text: 'Aucun Remous, et 1 créature de moins en main.' },
+  fantome:  { name: 'Banc fantôme', emoji: '👻', x: 0.64, text: 'Aucun bonus de Couronne (complète, Harmonie, Mosaïque).' },
+  pression: { name: 'Haute pression', emoji: '🌑', x: 0.91, text: 'Chaque corail a −1 Mult (minimum 1).' },
+  siphon:   { name: 'Le Siphon', emoji: '🕳️', x: 0.73, text: 'Une marée de moins.' },
 };
 
 // ── Zones de l'expédition ───────────────────────────────────
@@ -392,8 +400,8 @@ export const NODE_TYPES = {
   elite: { name: 'Plongée périlleuse', icon: '💀', text: 'Objectif élevé et une condition — récompense : un artefact.' },
   event: { name: 'Épave', icon: '❓', text: 'Une rencontre inattendue.' },
   shop:  { name: 'Comptoir', icon: '🛖', text: 'Achetez créatures, artefacts et coraux.' },
-  rest:  { name: 'Nurserie', icon: '🍼', text: 'Reprenez votre souffle ou faites grandir votre récif.' },
-  boss:  { name: 'Gardien', icon: '🛡️', text: 'Le gardien de la zone. Un échec met fin à l’expédition.' },
+  rest:  { name: 'Nurserie', icon: '🍼', text: 'Reprenez votre souffle ou faites grandir votre récif : un choix offert, un second à acheter.' },
+  boss:  { name: 'Gardien', icon: '🛡️', text: 'Le gardien de la zone. Un échec coûte 2 🫧 pour une seconde chance ; sans assez d’oxygène, il met fin à l’expédition.' },
 };
 
 // ── Plongeurs (méta-progression) ────────────────────────────
@@ -435,6 +443,12 @@ export const DEPTHS = [
 // Règles de base.
 export const BASE = {
   hand: 7, tides: 4, remous: 3, oxygen: 3, maxCorals: 4,
+  // Taille minimale du banc : on ne peut pas relâcher, vendre ni faire dévorer en dessous.
+  minBag: 6,
+  // Gardien raté : une seconde chance contre 2 🫧 (s'il en reste au moins 1 après).
+  bossRetryCost: 2,
+  // Nurserie : prix du second choix, par zone. Comptoir : fortifier un corail, puis +4 à chaque achat.
+  restSecond: [10, 15, 20], shopFortify: 8, shopFortifyStep: 4,
   // Départ : `startCorals` coraux et `startBag` créatures communes au hasard,
   // puis `draftRounds` choix de 1 créature parmi 3.
   startCorals: 2, startBag: 9, draftRounds: 3,
@@ -443,9 +457,12 @@ export const BASE = {
   // pouvoir coûter de l'oxygène, et le gardien ne plus être un mur infranchissable)
   // (gros palier à chaque zone, car le gardien offre un nouveau corail).
   // Repères du bot : plongées ~96/94/86 %, gardiens ~74/63/42 %, expéditions gagnées ~19 %.
+  // Bot plus fort de la revue du 09/11/2026 (docs/revue-conseil-2026-11-09.md), P0 et P2 :
+  // plongées 99/97/96 %, élites 78/71/60 %, gardiens 81/70/52 %, expéditions gagnées ~32 %.
   zoneTargets: [800, 2100, 5200], rowGrowth: 1.2,
   // Gardiens : un coefficient par zone (celui des Abysses tient compte de ses 2 conditions).
-  eliteX: 1.2, bossX: [0.75, 0.8, 0.74],
+  // Ils compensent le `x` des conditions, qui baisse l'objectif (environ ×0,78 par condition en moyenne).
+  eliteX: 1.54, bossX: [1, 1.03, 1.12],
   // Expédition du tutoriel : objectifs allégés pour que la première partie se gagne.
   tutorialX: 0.5,
   // Marée montante : +1 Mult sur chaque corail par marée déjà jouée dans la plongée.

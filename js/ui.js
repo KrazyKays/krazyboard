@@ -10,6 +10,7 @@ import * as E from './engine.js';
 const app = document.getElementById('app');
 const SAVE_KEY = 'krazy-sea-run-v3';
 const TUTO_SAVE_KEY = 'krazy-sea-tuto-run-v1'; // l'expédition du tutoriel n'écrase jamais la vraie
+const DAILY_SAVE_KEY = 'krazy-sea-daily-run-v1'; // la plongée du jour non plus
 const META_KEY = 'krazy-sea-meta-v2';
 const KEY_PREFIX = 'krazy-sea-'; // inclut les anciennes versions ; ne touche pas aux autres sites du même domaine
 const DEBUG = new URLSearchParams(location.search).has('debug');
@@ -82,15 +83,20 @@ function wipeLocalData() {
 function save() {
   if (S.run && !S.tuto && S.run.phase !== 'end') saveJSON(slotOf(S.run), S.run);
 }
-const slotOf = (r) => (r.tutorial ? TUTO_SAVE_KEY : SAVE_KEY);
+const slotOf = (r) => (r.tutorial ? TUTO_SAVE_KEY : r.daily ? DAILY_SAVE_KEY : SAVE_KEY);
 const hasSave = (key = SAVE_KEY) => { const r = loadJSON(key, null); return !!(r && r.v === E.SAVE_VERSION && r.phase !== 'end'); };
+// Anciennes sauvegardes : la plongée du jour partageait l'emplacement de l'expédition normale.
+{
+  const old = loadJSON(SAVE_KEY, null);
+  if (old && old.daily && !hasSave(DAILY_SAVE_KEY)) { saveJSON(DAILY_SAVE_KEY, old); clearSave(SAVE_KEY); }
+}
 
 // ── Utilitaires ─────────────────────────────────────────────
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = (n) => Math.round(n).toLocaleString('fr-FR');
 // Jour local (et non UTC) : la plongée du jour change à minuit, heure du joueur.
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const dailyLabel = (e) => (e.score < 0 ? 'en cours' : `${e.best} · ${fmt(e.pts || 0)} pts`);
+const dailyLabel = (e) => (e.score >= 0 ? `${e.best} · ${fmt(e.pts || 0)} pts` : dailyRunning() ? 'en cours' : 'abandonné');
 const plural = (n, s, p = s + 's') => (n > 1 ? p : s);
 const zoomTpl = (html) => `<template>${html}</template>`;
 const typeBand = (type) => `<div class="a-type">${CARD_TYPES[type].icon} ${CARD_TYPES[type].name}</div>`;
@@ -220,9 +226,11 @@ function renderTitle() {
       ${tutoSave ? `<button class="btn ${hasSave() ? '' : 'primary'}" data-action="continue" data-slot="tuto">Reprendre l’expédition du tutoriel</button>` : ''}
       ${firstTime ? '<button class="btn primary" data-action="tuto">Tutoriel (conseillé)</button>' : ''}
       <button class="btn ${hasSave() || tutoSave || firstTime ? '' : 'primary'}" data-action="newrun">Nouvelle expédition</button>
-      <button class="btn" data-action="daily" data-tip="${esc(daily
-        ? `Plongée du jour — Votre essai classé : ${dailyLabel(daily)}. | ${dailyRunning() ? 'Reprenez-le pour le terminer.' : 'Vous pouvez rejouer, hors classement.'}`
-        : 'Plongée du jour — Même départ et mêmes cartes pour tout le monde aujourd’hui. | Seul le premier essai est classé.')}">📅 Plongée du jour${daily ? ` (${dailyLabel(daily)})` : ''}</button>
+      <button class="btn" data-action="daily" data-tip="${esc(dailyToday()
+        ? `Plongée du jour — ${dailyRunning() ? 'Votre essai classé est en cours' : 'Votre essai hors classement est en cours'}. | Reprenez-le là où vous l’avez laissé. Il a sa propre sauvegarde : votre expédition normale n’y est pour rien.`
+        : daily
+          ? `Plongée du jour — Votre essai classé : ${dailyLabel(daily)}. | Vous pouvez rejouer, hors classement.`
+          : 'Plongée du jour — Même départ et mêmes cartes pour tout le monde aujourd’hui. | Seul le premier essai est classé. Il a sa propre sauvegarde : votre expédition normale n’y est pour rien.')}">📅 ${dailyToday() ? 'Reprendre la plongée du jour' : `Plongée du jour${daily ? ` (${dailyLabel(daily)})` : ''}`}</button>
     </div>
     <div class="row">
       ${firstTime ? '' : '<button class="btn ghost" data-action="tuto">Tutoriel</button>'}
@@ -236,14 +244,24 @@ function renderTitle() {
 }
 
 // ── Carte ───────────────────────────────────────────────────
-// Repère face au gardien : la meilleure marée de la dernière plongée, comparée au rythme
-// moyen qu'il faudra tenir sur ses marées (la Marée montante aide les dernières).
+// Repère face au gardien : la meilleure marée de la dernière plongée, freinée de ce que ses
+// conditions coûtent en moyenne, comparée au rythme qu'il faudra tenir sur ses marées
+// (la Marée montante aide les dernières). Le Siphon compte déjà dans le nombre de marées.
 function pace(r, boss) {
   if (!r.bestTide) return '';
   const tides = BASE.tides + (E.has(r, 'boussole') ? 1 : 0) - (boss.cond.includes('siphon') ? 1 : 0);
   const need = E.targetFor(r, boss) / Math.max(1, tides);
-  const ok = r.bestTide >= need;
-  return `<div class="bc-pace ${ok ? 'ok' : 'low'}" data-tip="${esc(`Votre rythme — Meilleure marée de votre dernière plongée, face au score moyen qu’il faudra marquer à chaque marée contre le gardien. | La Marée montante renforce les dernières marées ; ses conditions peuvent vous freiner.`)}">📈 Votre meilleure marée : <b>${fmt(r.bestTide)}</b> · il faudra ~<b>${fmt(need)}</b> par marée</div>`;
+  const slow = boss.cond.filter((k) => k !== 'siphon').reduce((a, k) => a * E.condX(r, k), 1);
+  const est = r.bestTide * slow;
+  const ok = est >= need;
+  return `<div class="bc-pace ${ok ? 'ok' : 'low'}" data-tip="${esc(`Votre rythme — Meilleure marée de votre dernière plongée${slow < 1 ? ', puis ce qu’elle deviendrait face aux conditions du gardien (d’après leur effet moyen)' : ''}, comparée au score moyen qu’il faudra marquer à chaque marée contre lui. | La Marée montante renforce les dernières marées.`)}">📈 Votre meilleure marée : <b>${fmt(r.bestTide)}</b>${slow < 1 ? ` → ~<b>${fmt(est)}</b> avec ses conditions` : ''} · il faudra ~<b>${fmt(need)}</b> par marée</div>`;
+}
+// Ce que coûte une condition, et si l'objectif en tient compte (pas la condition de la Profondeur 5).
+function condCost(r, node, k) {
+  const x = E.condX(r, k);
+  if (x >= 1) return '';
+  const extra = node.type === 'boss' && r.depth >= 5 && node.cond[node.cond.length - 1] === k;
+  return `Score ≈ −${Math.round((1 - x) * 100)} % en moyenne${extra ? ' (condition de la Profondeur 5 : objectif non réduit)' : ', objectif réduit d’autant'}.`;
 }
 
 function renderMap() {
@@ -268,7 +286,7 @@ function renderMap() {
     const cur = r.pos && r.pos.row === n.row && r.pos.lane === n.lane;
     const picked = isAv && S.ui.node === `${n.row}:${n.lane}`;
     const cls = ['node', `t-${n.type}`, isAv && 'av', n.done && 'done', cur && 'cur', picked && 'picked'].filter(Boolean).join(' ');
-    const tip = [`${T.name} — ${T.text}`, ...(n.cond || []).map((k) => `${CONDITIONS[k].emoji} ${CONDITIONS[k].name} : ${CONDITIONS[k].text}`),
+    const tip = [`${T.name} — ${T.text}`, ...(n.cond || []).map((k) => `${CONDITIONS[k].emoji} ${CONDITIONS[k].name} : ${CONDITIONS[k].text} ${condCost(r, n, k)}`.trim()),
       ...(['dive', 'elite', 'boss'].includes(n.type) ? [`🏁 Objectif : ${fmt(E.targetFor(r, n))}`] : [])].join(' | ');
     const rad = n.type === 'boss' ? 28 : 21;
     if (picked) info = { T, tip, n };
@@ -289,8 +307,8 @@ function renderMap() {
         <div class="boss-card">
           <div class="bc-h">🛡️ Gardien de la zone · objectif ${fmt(E.targetFor(r, boss))}</div>
           ${pace(r, boss)}
-          ${boss.cond.map((k) => `<div class="bc-c" ${glossText(CONDITIONS[k].text)}><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}</div>`).join('')}
-          <div class="muted">Rater le gardien met fin à l’expédition. Le vaincre : nouveau corail et oxygène rechargé.</div>
+          ${boss.cond.map((k) => `<div class="bc-c" ${glossText(CONDITIONS[k].text)}><b>${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</b> — ${CONDITIONS[k].text}${condCost(r, boss, k) ? ` <span class="muted">${condCost(r, boss, k)}</span>` : ''}</div>`).join('')}
+          <div class="muted">Rater le gardien coûte ${BASE.bossRetryCost} 🫧 pour une seule seconde chance, s’il vous en reste au moins 1 ensuite ; sinon, l’expédition s’arrête. Le vaincre : nouveau corail et +1 🫧.</div>
         </div>
         <div class="legend">${Object.entries(NODE_TYPES).map(([, t]) => `<span data-tip="${esc(t.text)}">${t.icon} ${t.name}</span>`).join('')}</div>
         <h3>Votre récif</h3>
@@ -307,7 +325,7 @@ function renderDive() {
   const placing = d.phase === 'place';
   const info = placing ? E.scoreTide(r) : d.last;
   const node = E.nodeAt(r, r.pos.row, r.pos.lane);
-  const title = d.type === 'boss' ? '🛡️ Gardien' : d.type === 'elite' ? '💀 Plongée périlleuse' : '🐟 Plongée';
+  const title = d.type === 'boss' ? `🛡️ Gardien${d.retry ? ' · seconde chance' : ''}` : d.type === 'elite' ? '💀 Plongée périlleuse' : '🐟 Plongée';
 
   // HUD
   const pct = Math.min(100, (d.score / d.target) * 100);
@@ -426,7 +444,7 @@ function renderReward() {
   const r = S.run; const rw = r.reward; const st = rw.stages[0];
   const head = `<h2>${rw.type === 'boss' ? '🛡️ Gardien vaincu !' : '🎉 Plongée réussie !'}</h2>
     <p>Score <b>${fmt(rw.score)}</b> / ${fmt(rw.target)} — <b>⚪ +${rw.pearls} perles</b>
-    <span class="muted">(${rw.lines.map(([l, n]) => `${l} +${n}`).join(', ')})</span>${rw.type === 'boss' ? '<br>🫧 Oxygène entièrement rechargé.' : ''}</p>`;
+    <span class="muted">(${rw.lines.map(([l, n]) => `${l} +${n}`).join(', ')})</span>${rw.type === 'boss' ? `<br>🫧 +1 Oxygène (${r.oxygen}/${r.oxygenMax}).` : ''}</p>`;
   let body = '';
   if (!st) {
     body = ''; // dernière étape choisie : la fenêtre de choix prend le relais
@@ -508,6 +526,7 @@ function renderShop() {
     <div class="shop-foot">
       <button class="btn" data-action="shopremove" ${r.pearls >= r.removeCost && r.bag.length > 6 ? '' : 'disabled'}>Relâcher une créature · ⚪ ${r.removeCost}</button>
       <button class="btn" data-action="shopheal" ${r.pearls >= E.healCost(r) && r.oxygen < r.oxygenMax ? '' : 'disabled'}>+1 🫧 · ⚪ ${E.healCost(r)}</button>
+      <button class="btn" data-action="shopfortify" data-tip="${esc('Fortifier un corail — +1 Mult permanent sur le corail de votre choix. | Le prix augmente à chaque achat.')}" ${r.pearls >= E.fortifyCost(r) ? '' : 'disabled'}>🪸 Fortifier un corail · ⚪ ${E.fortifyCost(r)}</button>
       <button class="btn primary big" data-action="leave">Reprendre la route →</button>
     </div>
   </div></div>`;
@@ -530,16 +549,25 @@ function renderEvent() {
 // ── Nurserie ────────────────────────────────────────────────
 function renderRest() {
   const r = S.run;
-  app.innerHTML = `<div class="screen">${topbar()}<div class="between event">
-    <div class="ev-em">🍼</div><h2>La Nurserie</h2>
-    <p class="ev-tx">Un recoin abrité où le récif reprend des forces avant d’affronter le gardien. Choisissez une seule option.</p>
+  const used = r.rest ? r.rest.used : 0;
+  const cost = E.restCost(r);
+  const can = used === 0 || r.pearls >= cost;
+  const off = (ok) => (ok && can ? '' : 'disabled');
+  const intro = used === 0
+    ? `Un recoin abrité où le récif reprend des forces avant d’affronter le gardien. Un premier choix est offert ; vous pourrez en acheter un second pour ⚪ ${cost}.`
+    : `Un second choix vous coûtera ⚪ ${cost}${r.pearls < cost ? ` : il vous manque ${cost - r.pearls} perles` : ''}. Vous pouvez aussi repartir dès maintenant.`;
+  app.innerHTML = `<div class="screen">${topbar()}${toast()}<div class="between event">
+    <div class="ev-em">🍼</div><h2>La Nurserie${used ? ` · second choix ⚪ ${cost}` : ''}</h2>
+    <p class="ev-tx">${intro}</p>
     <div class="choices">
-      <button class="btn choice" data-action="rest" data-w="heal" ${r.oxygen < r.oxygenMax ? '' : 'disabled'}><b>Reprendre son souffle</b><span>+1 🫧 Oxygène</span></button>
-      <button class="btn choice" data-action="rest" data-w="upgrade" ${glossText('Amélioration ★')}><b>Faire grandir une créature</b><span>Amélioration ★ : +50 % d’Éclat de base, définitivement</span></button>
-      <button class="btn choice" data-action="rest" data-w="fortify"><b>Fortifier un corail</b><span>+1 Mult permanent</span></button>
-      <button class="btn choice" data-action="rest" data-w="mutate"><b>Provoquer une mutation</b><span>1 mutation parmi 3, à poser sur la créature de votre choix</span></button>
-      <button class="btn choice" data-action="rest" data-w="merge" ${E.canMerge(r) ? '' : 'disabled'}><b>Fusionner deux créatures identiques</b><span>★ Éclat additionné, +1 Mult permanent, et une carte de moins au banc</span></button>
-    </div></div></div>`;
+      <button class="btn choice" data-action="rest" data-w="heal" ${off(r.oxygen < r.oxygenMax)}><b>Reprendre son souffle</b><span>+1 🫧 Oxygène</span></button>
+      <button class="btn choice" data-action="rest" data-w="upgrade" ${off(true)} ${glossText('Amélioration ★')}><b>Faire grandir une créature</b><span>Amélioration ★ : +50 % d’Éclat de base, définitivement</span></button>
+      <button class="btn choice" data-action="rest" data-w="fortify" ${off(true)}><b>Fortifier un corail</b><span>+1 Mult permanent</span></button>
+      <button class="btn choice" data-action="rest" data-w="mutate" ${off(true)}><b>Provoquer une mutation</b><span>1 mutation parmi 3, à poser sur la créature de votre choix</span></button>
+      <button class="btn choice" data-action="rest" data-w="merge" ${off(E.canMerge(r))}><b>Fusionner deux créatures identiques</b><span>★ Éclat additionné, +1 Mult permanent, et une carte de moins au banc</span></button>
+    </div>
+    ${used ? '<button class="btn primary big" data-action="restleave">Reprendre la route →</button>' : ''}
+  </div></div>`;
 }
 
 // ── Fin d'expédition ────────────────────────────────────────
@@ -590,7 +618,7 @@ const RULES = `
   <li><b>Fusion</b> ★ : deux créatures identiques n’en font plus qu’une, bien plus forte. Un banc plus fin pioche plus souvent ses meilleures cartes.</li>
   <li><b>Éphémère</b> : une seule fois par plongée. <b>Fidèle</b> : revient en main après la marée. <b>Éclosion</b> : devient une autre créature après quelques marées jouées, pour toujours.</li>
   <li><b>Parasites</b> ☣️ : ces cartes encombrent votre banc. Relâchez-les au comptoir, ou faites-les manger par un Orque ou un Labre.</li></ul>
-  <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien y met fin aussitôt.
+  <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien en coûte ${BASE.bossRetryCost} pour une seule seconde chance, à condition qu’il vous en reste au moins 1 ensuite ; sinon l’expédition prend fin. Vaincre un gardien rend 1 🫧.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
   Atteindre les Abysses débloque une <b>Profondeur</b> plus difficile.
   🌊 <b>Marée montante</b> : à chaque marée d’une plongée, vos coraux gagnent +1 Mult. Une plongée sans espoir ? 🏳️ <b>Remonter</b> l’abandonne (elle compte comme ratée).</p>
@@ -731,17 +759,25 @@ function modalHTML() {
       <h2>Règles de Krazy Sea</h2><div class="cols">${RULES}</div>
       <button class="btn primary" data-action="closemodal">Compris !</button></div></div>`;
   }
+  if (S.modal === 'overwrite') {
+    const o = S.overwrite;
+    return `<div class="modal-bg" data-action="closemodal"><div class="modal" data-stop>
+      <h2>Abandonner ${o.what} ?</h2>
+      <p class="wipe-tx">${o.text} Si vous continuez, elle sera <b>perdue définitivement</b>.</p>
+      <div class="row"><button class="btn primary" data-action="closemodal">Garder ma partie</button>
+        <button class="btn danger" data-action="overwriteok">L’abandonner</button></div></div></div>`;
+  }
   if (S.modal === 'surrender') {
     const boss = r.dive.type === 'boss';
     return `<div class="modal-bg" data-action="closemodal"><div class="modal" data-stop>
       <h2>🏳️ Remonter à la surface ?</h2>
-      <p class="wipe-tx">La plongée s’arrête et compte comme <b>ratée</b> : ${boss ? 'face au gardien, <b>l’expédition prend fin</b>.' : `vous perdez <b>1 🫧</b> (il vous en reste ${r.oxygen}).`}</p>
+      <p class="wipe-tx">La plongée s’arrête et compte comme <b>ratée</b> : ${boss ? (E.canRetryBoss(r) ? `face au gardien, vous perdez <b>${BASE.bossRetryCost} 🫧</b> et l’affrontez une <b>seconde et dernière fois</b> (il vous en restera ${r.oxygen - BASE.bossRetryCost}).` : 'face au gardien, <b>l’expédition prend fin</b>.') : `vous perdez <b>1 🫧</b> (il vous en reste ${r.oxygen}).`}</p>
       <div class="row"><button class="btn primary" data-action="closemodal">Continuer à plonger</button>
         <button class="btn danger" data-action="surrenderok">Remonter</button></div></div></div>`;
   }
   if (S.modal === 'wipe') {
     const lost = [
-      (hasSave() || hasSave(TUTO_SAVE_KEY)) && 'votre expédition en cours',
+      (hasSave() || hasSave(TUTO_SAVE_KEY) || hasSave(DAILY_SAVE_KEY)) && 'votre expédition en cours',
       'vos statistiques et vos scores de plongée du jour',
       'les plongeurs et les Profondeurs débloqués',
       'votre bestiaire',
@@ -947,7 +983,7 @@ const TIPS = [
     text: `Une main qui ne vous plaît pas ? Le <b>Remous</b> renvoie les créatures choisies dans la pioche et vous en donne autant de nouvelles. Vous n'en avez que quelques-uns par plongée.` },
   // Entre les plongées
   { id: 'oxygen', title: 'L’oxygène 🫧', target: '.o2', when: (r) => r.oxygen < r.oxygenMax && r.phase !== 'end',
-    text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête, et rater un gardien y met fin aussitôt. Le comptoir et la nurserie en rendent.` },
+    text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête. Rater un gardien en coûte ${BASE.bossRetryCost} pour une seconde chance, s'il vous en reste assez ; sinon, l'expédition prend fin. Le comptoir, la nurserie et chaque gardien vaincu en rendent.` },
   { id: 'reward', title: 'La récompense', target: '.offer', when: (r) => stage(r, 'creature'),
     text: `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${fl(0, 'Sous une offre')}, l'icône d'un de vos coraux signale qu'il la met en valeur.`,
     focus: ['.offer-item:first-child .hints'] },
@@ -967,7 +1003,7 @@ const TIPS = [
   { id: 'event', title: 'Les épaves ❓', target: '.choices', when: (r) => r.phase === 'event' && !r.event.done,
     text: `Une rencontre et un choix. Certains se paient : <b>survolez</b> une option pour lire ce qu'elle implique.` },
   { id: 'rest', title: 'La nurserie 🍼', target: '.choices', when: (r) => r.phase === 'rest',
-    text: `Une seule option, à choisir selon votre récif : souffle, créature améliorée ★, corail fortifié, mutation ou fusion de deux créatures identiques.` },
+    text: `Un premier choix offert, selon votre récif : souffle, créature améliorée ★, corail fortifié, mutation ou fusion de deux créatures identiques. Un second se paie en perles.` },
   { id: 'mutation', title: 'Les mutations 🧬', target: '.artifact.mutation, .c-mut, .bdg.mut', when: () => true,
     text: `Une <b>mutation</b> se pose sur une créature précise de votre banc et la modifie pour toujours. Survolez-la pour lire son effet.` },
   { id: 'coral', title: 'Un nouveau corail', target: '.offer', when: (r) => stage(r, 'coral'),
@@ -1319,8 +1355,19 @@ let lastBosses = 0;
 const dailyProgress = (r) => (r.end.win ? '🏆' : `${ZONES[r.end.zone].name} ${Math.min(r.end.row + 1, ROWS_PER_ZONE + 1)}`);
 // Un essai classé du jour est-il sauvegardé, à reprendre ?
 function dailyRunning() {
-  const r = loadJSON(SAVE_KEY, null);
+  const r = loadJSON(DAILY_SAVE_KEY, null);
   return !!(r && r.v === E.SAVE_VERSION && r.phase !== 'end' && r.daily && r.ranked && r.day === today());
+}
+// Une plongée du jour d'aujourd'hui (classée ou non) attend d'être reprise ?
+function dailyToday() {
+  const r = loadJSON(DAILY_SAVE_KEY, null);
+  return !!(r && r.v === E.SAVE_VERSION && r.phase !== 'end' && r.day === today());
+}
+// Lance `go` tout de suite, ou après confirmation si cela écrase une partie sauvegardée.
+function guardSave(key, what, text, go) {
+  if (!hasSave(key)) { go(); return; }
+  S.overwrite = { what, text, go };
+  S.modal = 'overwrite';
 }
 function afterAction() {
   const r = S.run;
@@ -1338,7 +1385,7 @@ function afterAction() {
 }
 
 function startRun(opts) {
-  clearSave();
+  clearSave(opts.daily ? DAILY_SAVE_KEY : SAVE_KEY);
   S.run = E.newRun(opts);
   lastBosses = 0;
   S.ui = { sel: null, remous: false, rsel: [] };
@@ -1351,15 +1398,21 @@ const resetUI = () => { S.ui = { sel: null, remous: false, rsel: [] }; };
 const handlers = {
   diver: (el) => { S.diver = el.dataset.k; },
   depth: (el) => { S.depth = +el.dataset.i; },
-  newrun: () => startRun({ diverId: S.diver, depth: S.depth }),
+  newrun: () => guardSave(SAVE_KEY, 'votre expédition en cours',
+    'Une expédition est en cours. En commencer une nouvelle la remplace.',
+    () => startRun({ diverId: S.diver, depth: S.depth })),
   daily: () => {
     const day = today();
-    if (dailyRunning()) { handlers.continue({ dataset: {} }); return; }
-    const ranked = !meta.daily[day];
-    startRun({ diverId: 'exploratrice', depth: 0, seed: E.seedFrom(`krazy-${day}`), daily: true });
-    Object.assign(S.run, { day, ranked });
-    if (ranked) { meta.daily[day] = { best: '', score: -1, pts: 0 }; saveMeta(); }
+    if (dailyToday()) { handlers.continue({ dataset: { slot: 'daily' } }); return; }
+    guardSave(DAILY_SAVE_KEY, 'votre plongée du jour précédente',
+      'La plongée du jour d’un jour passé n’est pas terminée.', () => {
+        const ranked = !meta.daily[day];
+        startRun({ diverId: 'exploratrice', depth: 0, seed: E.seedFrom(`krazy-${day}`), daily: true });
+        Object.assign(S.run, { day, ranked });
+        if (ranked) { meta.daily[day] = { best: '', score: -1, pts: 0 }; saveMeta(); }
+      });
   },
+  overwriteok: () => { const o = S.overwrite; S.modal = null; S.overwrite = null; o?.go(); },
   share: () => {
     const r = S.run;
     const txt = `🌊 Krazy Sea · Plongée du jour ${r.day || today()}\n${dailyProgress(r)} · ${fmt(r.points || 0)} pts · ${r.bosses} ${plural(r.bosses, 'gardien')}${r.ranked ? '' : ' (hors classement)'}`;
@@ -1370,7 +1423,7 @@ const handlers = {
   surrenderask: () => { S.modal = 'surrender'; },
   surrenderok: () => { S.modal = null; E.surrender(S.run); resetUI(); },
   continue: (el) => {
-    const r = loadJSON(el.dataset.slot === 'tuto' ? TUTO_SAVE_KEY : SAVE_KEY, null);
+    const r = loadJSON({ tuto: TUTO_SAVE_KEY, daily: DAILY_SAVE_KEY }[el.dataset.slot] || SAVE_KEY, null);
     if (r && r.v === E.SAVE_VERSION) { S.run = r; lastBosses = r.bosses; S.screen = 'game'; resetUI(); }
   },
   rules: () => { S.modal = 'rules'; },
@@ -1380,7 +1433,8 @@ const handlers = {
   wipeask: () => { S.modal = 'wipe'; },
   wipeok: () => { wipeLocalData(); S.notice = 'Vos données locales ont été effacées.'; },
   menu: () => { S.modal = null; if (S.tuto) endTuto(); else S.screen = 'title'; },
-  tuto: () => startTuto(),
+  tuto: () => guardSave(TUTO_SAVE_KEY, 'l’expédition du tutoriel en cours',
+    'Vous n’avez pas fini l’expédition commencée avec le tutoriel. Relancer le tutoriel la remplace.', startTuto),
   tutonext: () => { S.tuto.i++; },
   tutoend: () => endTuto(),
   // Fin du guidage : l'expédition se poursuit et compte comme une vraie, sur son propre emplacement.
@@ -1448,6 +1502,8 @@ const handlers = {
   reorderdone: () => { S.run.toast = '🌀 Votre récif est réorganisé.'; E.backToMap(S.run); },
   evchoice: (el) => E.eventChoose(S.run, +el.dataset.i),
   rest: (el) => E.restChoose(S.run, el.dataset.w),
+  restleave: () => E.restLeave(S.run),
+  shopfortify: () => E.shopFortify(S.run),
 };
 
 // ── Glisser-déposer : poser, déplacer, reprendre et ranger les créatures ─

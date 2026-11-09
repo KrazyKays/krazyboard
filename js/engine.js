@@ -347,6 +347,7 @@ export function enterNode(run, row, lane) {
     run.event = { id: pickEvent(run), msg: null };
     run.phase = 'event';
   } else if (node.type === 'rest') {
+    run.rest = { used: 0 };
     run.phase = 'rest';
   }
   return true;
@@ -378,11 +379,21 @@ export function targetFor(run, node) {
   let t = BASE.zoneTargets[run.zone] * BASE.rowGrowth ** node.row;
   if (node.type === 'elite') t *= BASE.eliteX;
   if (node.type === 'boss') t *= BASE.bossX[run.zone];
+  // Chaque condition baisse l'objectif à proportion de ce qu'elle coûte, sauf la condition
+  // ajoutée par la Profondeur 5 (la dernière du gardien), qui doit rester une vraie difficulté.
+  const conds = node.cond || [];
+  for (const k of conds.slice(0, node.type === 'boss' && run.depth >= 5 ? -1 : undefined)) t *= condX(run, k);
   if (run.tutorial) t *= BASE.tutorialX;
   if (run.depth >= 1) t *= 1.2;
   if (run.depth >= 2 && (node.type === 'elite' || node.type === 'boss')) t *= 1.1;
   const mag = 10 ** Math.max(1, Math.floor(Math.log10(t)) - 1);
   return Math.round(t / mag) * mag;
+}
+
+// Effet moyen d'une condition sur le score (voir CONDITIONS.x).
+export function condX(run, k) {
+  const v = CONDITIONS[k].x;
+  return typeof v === 'function' ? v(run) : v ?? 1;
 }
 
 export function startDive(run, node) {
@@ -604,7 +615,11 @@ export function scoreTide(run) {
     if (hasCond(run, 'pression') && mult > 1) { addM(CONDITIONS.pression.emoji, CONDITIONS.pression.name, -1, CONDITIONS.pression.text); mult -= 1; }
     const full = B.full(ci);
     let xm = 1;
-    for (const x of live) if (x.xm > 1) { xm *= x.xm; addX(x.def.emoji, x.def.name, x.xm, x.def.text); }
+    // Les ×Mult des créatures ne se cumulent pas sur un même corail : seul le plus fort compte
+    // (sinon 4 Langoustes feraient ×16). Ceux du corail et de la couronne s'y ajoutent.
+    const top = live.filter((x) => x.xm > 1).sort((a, b) => b.xm - a.xm)[0];
+    for (const x of live) if (x !== top) x.xm = 1;
+    if (top) { xm *= top.xm; addX(top.def.emoji, top.def.name, top.xm, top.def.text); }
     const kx = k.xmultB?.(full) || 1;
     if (kx > 1) { xm *= kx; addX(k.emoji, k.name, kx, k.text); }
     if (full && !hasCond(run, 'fantome')) {
@@ -719,6 +734,12 @@ export function surrender(run) {
   return true;
 }
 
+// Rater ce gardien laisserait-il une seconde chance ? (une seule, et il doit rester 1 🫧 après)
+export function canRetryBoss(run) {
+  const d = run.dive;
+  return !!d && d.type === 'boss' && !d.retry && run.oxygen > BASE.bossRetryCost;
+}
+
 function finishDive(run) {
   const d = run.dive;
   run.dives++;
@@ -731,7 +752,18 @@ function finishDive(run) {
     run.toast = '🍀 Le coquillage porte-bonheur se brise… mais la plongée est sauvée !';
   }
   if (!win) {
-    if (d.type === 'boss') { endRun(run, false); return; }
+    if (d.type === 'boss') {
+      // Seconde chance : une seule par gardien, contre 2 🫧, s'il en reste au moins 1 ensuite.
+      if (canRetryBoss(run)) {
+        run.oxygen -= BASE.bossRetryCost;
+        run.dive = startDive(run, nodeAt(run, run.pos.row, run.pos.lane));
+        run.dive.retry = true;
+        run.phase = 'dive';
+        run.toast = `🛡️ Le gardien tient bon. Vous perdez ${BASE.bossRetryCost} 🫧 et retentez votre chance (${run.oxygen}/${run.oxygenMax}).`;
+        return;
+      }
+      endRun(run, false); return;
+    }
     run.oxygen--;
     if (run.oxygen <= 0) { endRun(run, false); return; }
     run.toast = `❌ Plongée ratée : vous perdez 1 🫧 Oxygène (${run.oxygen}/${run.oxygenMax}).`;
@@ -755,7 +787,7 @@ function finishDive(run) {
   if (d.type === 'elite') stages.push({ kind: 'artifact', options: artifactOffers(run, 3) });
   if (d.type === 'boss') {
     run.bosses++;
-    run.oxygen = run.oxygenMax;
+    run.oxygen = Math.min(run.oxygenMax, run.oxygen + 1);
     if (run.zone < ZONES.length - 1) {
       stages.unshift({ kind: 'coral', options: coralOffers(run, 3) });
       stages.push({ kind: 'mutation', options: mutationOffers(run, 3) });
@@ -892,7 +924,7 @@ export function pickable(run, c, purpose) {
 export function chooseMutation(run, m) {
   const p = run.pending;
   if (!p || p.purpose !== 'mutchoice' || !p.options.includes(m)) return false;
-  run.pending = { purpose: 'mutate', mut: m, then: p.then };
+  run.pending = { purpose: 'mutate', mut: m, then: p.then, cancel: p.cancel };
   return true;
 }
 export function applyPick(run, id) {
@@ -911,6 +943,11 @@ export function applyPick(run, id) {
   if (p.purpose === 'fortify') {
     const c = run.corals.find((k) => k.id === id);
     if (!c) return false;
+    if (p.cost) {
+      if (run.pearls < p.cost) return false;
+      run.pearls -= p.cost;
+      run.fortBought = (run.fortBought || 0) + 1;
+    }
     c.lvl++;
     run.toast = `${CORALS[c.t].emoji} ${CORALS[c.t].name} : +1 Mult permanent.`;
   } else if (p.purpose === 'dropcoral') {
@@ -964,26 +1001,51 @@ export function applyPick(run, id) {
   const then = p.then;
   run.pending = null;
   if (then === 'map') backToMap(run);
+  if (then === 'rest') restDone(run);
   return true;
 }
 
 // ── Nurserie ────────────────────────────────────────────────
+// Un choix gratuit, puis un second qu'on peut acheter avant de repartir.
+export const restCost = (run) => price(run, BASE.restSecond[run.zone]);
 export function restChoose(run, what) {
+  const st = (run.rest ||= { used: 0 });
+  if (st.used >= 2 || (st.used === 1 && run.pearls < restCost(run))) return false;
   if (what === 'heal') {
     if (run.oxygen >= run.oxygenMax) return false;
     run.oxygen = Math.min(run.oxygenMax, run.oxygen + 1);
     run.toast = '🫧 Vous reprenez votre souffle (+1 Oxygène).';
-    backToMap(run);
+    restDone(run);
   } else if (what === 'upgrade') {
-    run.pending = { purpose: 'upgrade', then: 'map' };
+    run.pending = { purpose: 'upgrade', then: 'rest', cancel: true };
   } else if (what === 'fortify') {
-    run.pending = { purpose: 'fortify', then: 'map' };
+    run.pending = { purpose: 'fortify', then: 'rest', cancel: true };
   } else if (what === 'mutate') {
-    run.pending = { purpose: 'mutchoice', options: mutationOffers(run, 3), then: 'map' };
+    run.pending = { purpose: 'mutchoice', options: mutationOffers(run, 3), then: 'rest', cancel: true };
   } else if (what === 'merge') {
     if (!canMerge(run)) return false;
-    run.pending = { purpose: 'merge', then: 'map' };
-  }
+    run.pending = { purpose: 'merge', then: 'rest', cancel: true };
+  } else return false;
+  return true;
+}
+// Un choix de la nurserie est fait : le second se paie, et après lui on repart.
+function restDone(run) {
+  const st = (run.rest ||= { used: 0 });
+  if (st.used === 1) run.pearls -= restCost(run);
+  st.used++;
+  if (st.used >= 2) backToMap(run);
+}
+export function restLeave(run) {
+  if (run.phase !== 'rest' || !run.rest || run.rest.used < 1 || run.pending) return false;
+  backToMap(run);
+  return true;
+}
+
+// ── Comptoir : fortifier un corail, de plus en plus cher ──
+export const fortifyCost = (run) => price(run, BASE.shopFortify + BASE.shopFortifyStep * (run.fortBought || 0));
+export function shopFortify(run) {
+  if (run.phase !== 'shop' || run.pearls < fortifyCost(run)) return false;
+  run.pending = { purpose: 'fortify', cost: fortifyCost(run), then: null, cancel: true };
   return true;
 }
 

@@ -25,7 +25,7 @@ Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement. Sur écran
 et toucher une étape de la carte la décrit avant d'y entrer (« Y aller »). Au clavier, Tab parcourt les éléments jouables,
 Entrée ou Espace les active et Échap annule.
 
-Le bouton **Effacer mes données** de l'écran titre supprime, après confirmation, la sauvegarde et la progression stockées dans ce navigateur.
+Le bouton **Effacer mes données** des Options supprime, après confirmation, la sauvegarde et la progression stockées dans ce navigateur.
 
 ## Lire une carte
 
@@ -83,10 +83,15 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
   périlleuses (avec condition, rapportent un artefact), ❓ épaves (événements à choix), 🛖 comptoir, 🍼 nurserie.
   Aucun nœud n'offre tout ce qu'offre son voisin avec des choix en plus : chaque route en ferme d'autres.
 - **Gardiens** 🛡️ annoncés dès l'entrée dans la zone (Kraken, Tempête, Léviathan, Courant glacé…) : on construit
-  son récif en conséquence. Le vaincre fait pousser un **nouveau corail**. Sur la carte, le panneau du gardien compare la meilleure
-  marée de votre dernière plongée au rythme qu'il faudra tenir contre lui.
-- **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien y met fin aussitôt.
+  son récif en conséquence. Le vaincre fait pousser un **nouveau corail** et rend 1 🫧. Sur la carte, le panneau du gardien compare la meilleure
+  marée de votre dernière plongée, freinée de l'effet moyen de ses conditions, au rythme qu'il faudra tenir contre lui.
+  Chaque condition (gardiens et plongées périlleuses) baisse l'objectif à proportion de ce qu'elle coûte en moyenne, mesuré par simulation,
+  pour qu'aucune ne soit beaucoup plus dure qu'une autre ; seule la condition ajoutée par la Profondeur 5 n'est pas compensée.
+- **Oxygène** 🫧 : une plongée ratée coûte 1 bulle ; à zéro, l'expédition s'arrête. Rater un gardien en coûte 2 pour une seule
+  seconde chance, s'il en reste au moins 1 ensuite ; sinon l'expédition prend fin. Vaincre un gardien rend 1 bulle (et non plus le plein).
 - **Économie** : des perles pour chaque victoire, et un bonus pour chaque marée non utilisée.
+  Elles se dépensent au comptoir (dont « Fortifier un corail », de plus en plus cher) et à la nurserie avant chaque gardien :
+  un premier choix y est offert, un second s'achète (10, 15 puis 20 perles selon la zone).
 - **Changements permanents** : créatures qui grandissent (Poisson-lune, Bernard-l'ermite), prédateurs qui dévorent
   leurs voisins pour toujours (Orque), améliorations ★ à la nurserie, coraux fortifiés, banc à affiner au comptoir.
 - **19 artefacts** qui changent les règles (Boussole, Écaille de sirène, Sablier, Bourse de nacre…).
@@ -94,8 +99,10 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
   atteindre les Abysses à sa Profondeur la plus difficile débloque la suivante), un **bestiaire** à compléter.
 - **Plongée du jour** 📅 : même départ et mêmes cartes pour tout le monde (chaque zone est tirée de la graine du jour, quels que soient
   les choix). Seul le premier essai est classé, par progression puis par points marqués ; les suivants se jouent hors classement.
-  Le résultat se copie pour être partagé. Le jour change à minuit, heure locale.
-- Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage, effaçable depuis l'écran titre).
+  Le résultat se copie pour être partagé. Le jour change à minuit, heure locale. Elle a sa propre sauvegarde, comme l'expédition du tutoriel :
+  lancer une expédition normale ne la touche pas, et inversement.
+- Les expéditions sont **déterministes** à partir de leur graine et sauvegardées automatiquement (localStorage, effaçable depuis les Options).
+  Commencer une partie qui en remplacerait une autre en cours demande confirmation.
 
 ## Structure
 
