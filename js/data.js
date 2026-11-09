@@ -349,8 +349,12 @@ export const KEYWORDS = [
   { name: 'Mosaïque', match: 'Mosaïque', text: 'Couronne complète, toutes familles différentes : Mult ×1,5.' },
   { name: 'Remous', match: 'Remous', text: 'Défaussez des créatures de votre main pour en piocher autant. Vous avez un nombre limité de Remous par plongée.' },
   { name: 'Amélioration ★', match: 'améliorée ★|Amélioration ★|Améliorez une créature ★', text: '+50 % d’Éclat de base, définitivement.' },
-  { name: 'Cnidaire', match: 'Cnidaires?', text: 'Famille 🪼 : Méduse, Physalie, Pyrosome, Polype, Siphonophore, Plancton, Éphyrule.' },
-  { name: 'Échinoderme', match: 'Échinodermes?', text: 'Famille ⭐ : Étoile de mer, Oursin, Ophiure, Concombre de mer.' },
+  // Une définition par famille, avec ses membres tirés des créatures (hors « Toutes familles »).
+  ...Object.entries(FAMILIES).filter(([f]) => f !== 'nuisible').map(([f, F]) => ({
+    name: F.name,
+    match: `${F.name}${F.name.endsWith('eau') ? 'x?' : 's?'}`,
+    text: `Famille ${F.icon} : ${Object.values(CREATURES).filter((c) => c.fam === f && !c.allFam).map((c) => c.name).join(', ')}.`,
+  })),
 ];
 
 // ── Conditions (élites et gardiens) ─────────────────────────
