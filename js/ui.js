@@ -1014,9 +1014,14 @@ const TIPS = [
   // Entre les plongées
   { id: 'oxygen', title: 'L’oxygène 🫧', target: '.o2', when: (r) => r.oxygen < r.oxygenMax && r.phase !== 'end',
     text: `Une plongée ratée coûte 1 bulle d'<b>oxygène</b>. À zéro, l'expédition s'arrête. Rater un gardien en coûte ${BASE.bossRetryCost} pour une seconde chance, s'il vous en reste assez ; sinon, l'expédition prend fin. Le comptoir, la nurserie et chaque gardien vaincu en rendent.` },
+  // Les pastilles sous une offre (E.offerHints) : un corail qui l'aime, le penchant du
+  // plongeur, une famille proche d'un bonus… ou rien. Le texte s'adapte à ce qui est affiché.
   { id: 'reward', title: 'La récompense', target: '.offer', when: (r) => stage(r, 'creature'),
-    text: `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${fl(0, 'Sous une offre')}, l'icône d'un de vos coraux signale qu'il la met en valeur.`,
-    focus: ['.offer-item:first-child .hints'] },
+    text: (r) => {
+      const any = r.reward.stages[0].options.some((t) => E.offerHints(r, t).length > 0);
+      return `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${any ? fl(0, 'Sous une offre') : 'Sous une offre'}, une pastille peut signaler un atout : un de vos coraux qui la met en valeur, le penchant de votre plongeur, ou une famille de votre banc qu'elle rapproche d'un bonus d'écosystème 🌿. Sans pastille, la créature ne vaut que pour elle-même${any ? '' : ' : c’est le cas de celles-ci'}.`;
+    },
+    focus: ['.offer .offer-item .hints:has(.hint)'] },
   { id: 'map', title: 'La carte', target: '.map-col', when: (r) => r.phase === 'map',
     text: `Votre route descend ${fl(0, 'de ces étapes')} jusqu'au ${fl(1, 'gardien 🛡️', 'mlt')}, tout en bas : la plongée la plus dure de la zone, qui en garde la sortie. Chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.`,
     focus: ['.map .node.av', '.map .t-boss'] },
