@@ -117,13 +117,23 @@ export function draftOptions(run) {
   const all = Object.keys(CREATURES).filter((k) => offerable(run, k));
   const top = dominantFam(run);
   const out = [];
-  const take = (filter) => {
-    let pool = all.filter((t) => !out.includes(t) && filter(CREATURES[t]));
+  // Chaque filtre est essayé à son tour ; à défaut, une créature non rare au hasard.
+  const take = (...filters) => {
+    let pool = [];
+    for (const f of filters) if (!pool.length) pool = all.filter((t) => !out.includes(t) && f(CREATURES[t]));
     if (!pool.length) pool = all.filter((t) => !out.includes(t) && CREATURES[t].rar !== 'r');
     out.push(pick(run, pool));
   };
   const newFam = (d) => !out.some((t) => CREATURES[t].fam === d.fam);
-  if (round === 0) {
+  const lean = DIVERS[run.diverId].lean;
+  if (round === 0 && lean.length) {
+    // Un plongeur spécialisé donne le ton dès le premier choix : deux offres suivent son
+    // penchant (une par penchant s'il en a deux), la troisième reste libre.
+    for (const l of [lean[0], lean[1 % lean.length]]) {
+      take((d) => d.rar === 'u' && matches(d, l), (d) => d.rar !== 'r' && matches(d, l));
+    }
+    take((d) => d.rar !== 'r' && newFam(d) && !diverLikes(run, d));
+  } else if (round === 0) {
     take((d) => d.rar === 'u' && (coralLikes(run, d) || diverLikes(run, d)));
     take((d) => d.rar === 'u' && newFam(d));
     take((d) => d.rar !== 'r' && newFam(d));
@@ -178,6 +188,8 @@ export function offerHints(run, t) {
     const k = CORALS[c.t];
     if ((k.likes || []).some((l) => matches(def, l)) && !hints.some((h) => h.text === k.name)) hints.push({ icon: k.emoji, text: k.name });
   }
+  const D = DIVERS[run.diverId];
+  if (diverLikes(run, def)) hints.push({ icon: D.emoji, text: `Penchant ${D.of}` });
   const st = ecoStatus(run).find((e) => e.f === def.fam);
   if (st && st.next) {
     hints.push(st.n + 1 >= st.next.n
@@ -408,12 +420,30 @@ export function startDive(run, node) {
     handSize: BASE.hand + (has(run, 'filet') ? 1 : 0) + ecoSum(run, 'hand') - (c('glace') ? 1 : 0),
     draw: shuffle(run, run.bag.map((x) => x.id)), discard: [], hand: [], exhausted: [],
     board: run.corals.map(() => ({ N: null, E: null, S: null, W: null })),
-    blocked: [], phase: 'place', last: null, ended: null, history: [],
+    blocked: [], phase: 'place', last: null, ended: null, history: [], surge: null, surgeLast: null,
   };
   run.dive = d;
   drawTo(run, d.handSize);
   krakenBlock(run);
   return d;
+}
+
+// Marée montante : à partir de la deuxième marée, la mer monte sur un seul corail, tiré au
+// hasard et annoncé avant la pose, jamais le même deux marées de suite. Un tirage à part
+// (graine, plongée, marée) : il ne décale pas le reste de l'expédition.
+function rollSurge(run) {
+  const d = run.dive;
+  if (d.tide < 2 || !run.corals.length) { d.surge = null; return; }
+  const g = { rs: seedFrom(`${run.seed}:surge:${run.dives}:${d.tide}`) };
+  const all = run.corals.map((_, i) => i);
+  const pool = all.length > 1 ? all.filter((i) => i !== d.surgeLast) : all;
+  d.surge = pick(g, pool);
+  d.surgeLast = d.surge;
+}
+// Ce que la mer apporte au corail où elle monte, par marée déjà jouée (voir BASE.risingMult).
+export function surgeMult(run) {
+  const d = run.dive;
+  return d && d.surge != null ? (d.tide - 1) * BASE.risingMult : 0;
 }
 
 export function hasCond(run, k) { return !!run.dive && run.dive.cond.includes(k); }
@@ -608,10 +638,10 @@ export function scoreTide(run) {
     if (has(run, 'perle')) addM(ARTIFACTS.perle.emoji, ARTIFACTS.perle.name, 1, ARTIFACTS.perle.text);
     addM('🐋', 'Chant de la baleine', whales, 'Chaque Baleine posée dans le récif donne +1 Mult à tous les coraux.');
     addM(ARTIFACTS.trident.emoji, ARTIFACTS.trident.name, trident, ARTIFACTS.trident.text);
-    // Marée montante : chaque marée déjà jouée renforce tous les coraux (seulement s'ils portent des créatures).
-    const rising = on.length ? (d.tide - 1) * BASE.risingMult : 0;
+    // Marée montante : la mer monte sur un seul corail à chaque marée (seulement s'il porte des créatures).
+    const rising = on.length && ci === d.surge ? surgeMult(run) : 0;
     mult += rising;
-    addM('🌊', 'Marée montante', rising, `+${BASE.risingMult} Mult sur chaque corail par marée déjà jouée dans cette plongée.`);
+    addM('🌊', 'Marée montante', rising, `La mer monte sur ce corail à cette marée : +${BASE.risingMult} Mult par marée déjà jouée. À chaque marée, elle choisit un autre corail.`);
     if (hasCond(run, 'pression') && mult > 1) { addM(CONDITIONS.pression.emoji, CONDITIONS.pression.name, -1, CONDITIONS.pression.text); mult -= 1; }
     const full = B.full(ci);
     let xm = 1;
@@ -668,9 +698,12 @@ export function launchTide(run) {
   const res = scoreTide(run);
   const out = { pearls: 0, devoured: new Set(), notes: [] };
   for (const x of res.xs) {
-    if (x.silenced) continue;
-    x.def.after?.(x, res.B, out);
-    if (x.inst.mut === 'nacre') out.pearls += 1;
+    // Réduite au silence, une créature ne marque rien et n'a pas d'effet d'après-marée,
+    // mais la marée compte pour son Éclosion : elle a bien été jouée sur le récif.
+    if (!x.silenced) {
+      x.def.after?.(x, res.B, out);
+      if (x.inst.mut === 'nacre') out.pearls += 1;
+    }
     if (x.def.evolve && ++x.inst.xp >= x.def.evolve.after) {
       x.inst.t = x.def.evolve.into;
       x.inst.xp = 0;
@@ -718,6 +751,7 @@ export function nextTide(run) {
   d.hand.push(...back);
   drawTo(run, d.handSize);
   krakenBlock(run);
+  rollSurge(run);
   d.last = null;
   d.phase = 'place';
 }
@@ -1130,7 +1164,10 @@ export const EVENTS = {
     title: 'L’épave du sous-marin', emoji: '⚙️',
     text: 'Un vieux sous-marin rouillé. Son sas est encore étanche : un abri parfait pour une nouvelle colonie.',
     choices: [
-      { label: 'Planter une bouture', text: 'Un corail au hasard (récif plein : vous en retirez un), −8 perles', ok: (r) => r.pearls >= 8,
+      { label: 'Planter une bouture', ok: (r) => r.pearls >= 8,
+        text: (r) => (reefFull(r)
+          ? `Un corail au hasard, −8 perles. Votre récif est plein (${BASE.maxCorals} coraux au plus) : vous choisirez ensuite celui à retirer, nouveau venu compris.`
+          : `Un corail au hasard, −8 perles. Votre récif en accueille ${BASE.maxCorals} au plus : vous en avez ${r.corals.length}.`),
         act: (r) => { r.pearls -= 8; const t = coralOffers(r, 1)[0]; gainCoral(r, t, 'map'); return `Un nouveau corail pousse : ${CORALS[t].emoji} ${CORALS[t].name} !`; } },
       { label: 'Récupérer la ferraille', text: '+6 perles', act: (r) => { r.pearls += 6; return 'Quelques pièces se revendront bien.'; } },
     ],

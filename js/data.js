@@ -351,7 +351,7 @@ export const KEYWORDS = [
   { name: 'Sédentaire', cat: 'skill', match: 'Sédentaires?', text: 'Reste sur le récif d’une marée à l’autre, jusqu’à la fin de la plongée. Après sa première marée, elle ne peut plus être déplacée.' },
   { name: 'Éphémère', cat: 'skill', match: 'Éphémères?', text: 'Une fois jouée, elle sort de la plongée en cours. Elle revient dans votre pioche à la plongée suivante.' },
   { name: 'Fidèle', cat: 'skill', match: 'Fidèles?', text: 'Après la marée, elle revient directement en main au lieu de partir à la défausse.' },
-  { name: 'Éclosion', cat: 'skill', match: 'Éclosion', text: 'Après le nombre indiqué de marées jouées sur le récif, la créature se transforme pour toujours. Elle garde ses bonus et sa mutation.' },
+  { name: 'Éclosion', cat: 'skill', match: 'Éclosion', text: 'Après le nombre indiqué de marées jouées sur le récif, la créature se transforme pour toujours. Une marée compte même si elle est réduite au silence. Elle garde ses bonus et sa mutation.' },
   { name: 'Grandit', cat: 'skill', match: 'Grandit', text: 'Le bonus gagné est permanent : il reste acquis jusqu’à la fin de l’expédition.' },
   { name: 'Prédateur', cat: 'skill', match: 'Prédateurs?', text: 'Se nourrit de ses voisins. Le Requin réduit au silence les Poissons voisins le temps de la marée ; l’Orque retire sa proie du banc pour toujours.' },
   { name: 'Parasite', cat: 'skill', match: 'Parasites?', text: 'Carte nuisible qui encombre votre banc. Relâchez-la au comptoir, ou faites-la retirer par un Orque ou un Labre nettoyeur.' },
@@ -406,25 +406,28 @@ export const NODE_TYPES = {
 
 // ── Plongeurs (méta-progression) ────────────────────────────
 // Coraux et banc de départ sont tirés au hasard : le plongeur apporte un artefact,
-// des perles et un penchant (`lean`) qui oriente le tirage et les offres.
+// des perles et un penchant (`lean`) qui oriente le tirage et les offres. Son premier choix
+// de préparation propose deux créatures de son penchant.
+// Déblocage : au plus un nouveau plongeur par expédition, à sa fin, dans cet ordre ;
+// une condition remplie en même temps qu'une autre attend l'expédition suivante.
 export const DIVERS = {
   exploratrice: {
-    name: "L'Exploratrice", emoji: '🥾', text: 'Tirages sans orientation. Départ : Masque de plongée.',
+    name: "L'Exploratrice", of: 'de l’Exploratrice', emoji: '🥾', text: 'Tirages sans orientation. Départ : Masque de plongée.',
     artifacts: ['masque'], pearls: 4, lean: [],
     unlock: null,
   },
-  biologiste: {
-    name: 'Le Biologiste', emoji: '🔬', text: 'Tirages orientés vers les Poissons. Départ : Hameçon doré.',
-    artifacts: ['hamecon'], pearls: 2, lean: ['poisson'],
-    unlock: { zone: 2, text: 'Atteindre le Tombant' },
-  },
   chasseuse: {
-    name: "La Chasseuse d'épaves", emoji: '🏴‍☠️', text: 'Tirages orientés vers les Crustacés et les Mollusques. Départ : Carte au trésor.',
+    name: "La Chasseuse d'épaves", of: 'de la Chasseuse', emoji: '🏴‍☠️', text: 'Tirages orientés vers les Crustacés et les Mollusques. Départ : Carte au trésor.',
     artifacts: ['tresor'], pearls: 10, lean: ['crustace', 'mollusque'],
     unlock: { boss: 1, text: 'Vaincre un gardien' },
   },
+  biologiste: {
+    name: 'Le Biologiste', of: 'du Biologiste', emoji: '🔬', text: 'Tirages orientés vers les Poissons. Départ : Hameçon doré.',
+    artifacts: ['hamecon'], pearls: 2, lean: ['poisson'],
+    unlock: { zone: 2, text: 'Atteindre le Tombant' },
+  },
   naturaliste: {
-    name: 'La Naturaliste', emoji: '🔍', text: 'Tirages orientés vers les Sédentaires et les Échinodermes. Départ : Forêt d’algues.',
+    name: 'La Naturaliste', of: 'de la Naturaliste', emoji: '🔍', text: 'Tirages orientés vers les Sédentaires et les Échinodermes. Départ : Forêt d’algues.',
     artifacts: ['algues'], pearls: 4, lean: ['sed', 'echino'],
     unlock: { zone: 3, text: 'Atteindre les Abysses' },
   },
@@ -465,6 +468,9 @@ export const BASE = {
   eliteX: 1.54, bossX: [1, 1.03, 1.12],
   // Expédition du tutoriel : objectifs allégés pour que la première partie se gagne.
   tutorialX: 0.5,
-  // Marée montante : +1 Mult sur chaque corail par marée déjà jouée dans la plongée.
-  risingMult: 1,
+  // Marée montante : à chaque marée, un seul corail tiré au hasard (jamais le même deux fois de
+  // suite) reçoit +risingMult Mult par marée déjà jouée. Mesuré par simulation contrefactuelle
+  // (mêmes plongées rejouées) contre l'ancienne règle, +1 Mult sur tous les coraux :
+  // score ×1,00 avec 2 coraux, ×0,96 à ×0,99 avec 3, ×1,00 à ×1,02 avec 4 : l'équilibrage ne bouge pas.
+  risingMult: 2,
 };

@@ -19,7 +19,7 @@ sauvegarde. Ses objectifs sont allégés (×0,5) pour que la première partie pu
 
 Le reste du jeu arrive par les **Découvertes** 💡 : chaque règle avancée (couronnes, ponts, Remous, carte, gardien, écosystèmes, comptoir,
 épaves, nurserie, artefacts, mutations…) est présentée la première fois qu'elle apparaît à l'écran, toujours dans le même ordre et au plus une
-par marée ou par écran. Elles se désactivent depuis la bulle ou l'écran titre ; relancer le tutoriel les reprend depuis le début.
+par marée ou par écran. Celles que le tutoriel a déjà fait pratiquer (après la marée, lire une carte au survol) sont considérées comme lues. Elles se désactivent depuis la bulle ou l'écran titre ; relancer le tutoriel les reprend depuis le début.
 Un joueur qui avait déjà des expéditions avant leur arrivée les trouve désactivées.
 Sur ordinateur, tout le jeu tient dans la fenêtre, sans défilement. Sur écran tactile, toucher une pastille ou une carte affiche sa bulle,
 et toucher une étape de la carte la décrit avant d'y entrer (« Y aller »). Au clavier, Tab parcourt les éléments jouables,
@@ -53,7 +53,9 @@ Toute la profondeur tactique vient des **associations** :
   le Corail noir n'a que 3 emplacements mais un Mult de 5…).
 
 Une plongée = atteindre un **objectif** en 4 marées, avec quelques **Remous** 🌀 (défausser pour repiocher).
-La **Marée montante** 🌊 donne +1 Mult à chaque corail par marée déjà jouée : les dernières marées rapportent davantage.
+La **Marée montante** 🌊 : à partir de la deuxième marée, la mer monte sur un corail tiré au hasard (jamais le même deux fois de suite),
+annoncé avant la pose : il gagne +2 Mult par marée déjà jouée. Chaque marée invite donc à jouer autrement, et les dernières rapportent davantage.
+(Mesuré par simulation contre l'ancienne règle, +1 Mult sur tous les coraux : même score moyen avec 2, 3 ou 4 coraux.)
 Une plongée sans espoir peut être abandonnée (🏳️ **Remonter**) : elle compte alors comme ratée.
 Les créatures non posées restent en main, et les **Sédentaires** restent sur le récif d'une marée à l'autre.
 Tout se joue au clic ou en **glisser-déposer** (souris et tactile) : poser une créature, la déplacer ou l'échanger sur le récif,
@@ -73,7 +75,9 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
   épaves et gardiens en proposent, et certaines récompenses sont déjà mutées.
 - **Fusion** ★ : deux créatures identiques n'en font plus qu'une (Éclat additionné, +1 Mult permanent).
 - **Offres orientées** : les récompenses et le comptoir penchent vers votre récif et votre banc, la dernière offre restant libre pour bifurquer.
-- **Mots-clés** : **Éphémère** (une fois par plongée), **Fidèle** (revient en main), **Éclosion** (devient une autre créature pour toujours).
+  La récompense et le comptoir rappellent la composition du banc par famille, en soulignant les familles proposées.
+- **Mots-clés** : **Éphémère** (une fois par plongée), **Fidèle** (revient en main), **Éclosion** (devient une autre créature pour toujours ;
+  une marée compte même réduite au silence : un Œuf de requin couvé à côté d'un Requin nourrit le Requin et avance vers l'éclosion).
 - **Banc épais ou banc affûté** : le Krill et les Anchois aiment les grands bancs ou les copies, l'Hippocampe veut un banc fin, la Murène se nourrit de la défausse.
 - **Parasites** ☣️ : le prix de certaines épaves. Ils encombrent le banc jusqu'à ce que vous les relâchiez ou qu'un Orque ou un Labre s'en charge.
 
@@ -95,7 +99,9 @@ Aucune expédition ne commence pareil : **2 coraux** et **9 créatures communes*
 - **Changements permanents** : créatures qui grandissent (Poisson-lune, Bernard-l'ermite), prédateurs qui dévorent
   leurs voisins pour toujours (Orque), améliorations ★ à la nurserie, coraux fortifiés, banc à affiner au comptoir.
 - **19 artefacts** qui changent les règles (Boussole, Écaille de sirène, Sablier, Bourse de nacre…).
-- **Méta-progression** : 4 plongeurs (un artefact et un penchant qui oriente les tirages), 5 niveaux de **Profondeur** (difficulté :
+- **Méta-progression** : 4 plongeurs (un artefact et un penchant qui oriente les tirages ; le premier choix de la préparation propose
+  deux créatures de ce penchant, marquées « Penchant du … »). Un seul nouveau plongeur rejoint le joueur à la fin de chaque expédition,
+  même si plusieurs conditions ont été remplies : les autres attendent les expéditions suivantes. 5 niveaux de **Profondeur** (difficulté :
   atteindre les Abysses à sa Profondeur la plus difficile débloque la suivante), un **bestiaire** à compléter.
 - **Plongée du jour** 📅 : même départ et mêmes cartes pour tout le monde (chaque zone est tirée de la graine du jour, quels que soient
   les choix). Seul le premier essai est classé, par progression puis par points marqués ; les suivants se jouent hors classement.

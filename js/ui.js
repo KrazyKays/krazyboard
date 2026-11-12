@@ -27,12 +27,15 @@ function localKeys() {
 // tips : Découvertes déjà lues ; tipsOff : le joueur les a masquées.
 // glossOff : catégories de définitions (GLOSS_CATS) que le joueur ne veut plus voir dans les infobulles.
 // animSpeed : clé de ANIM_SPEEDS ; tipMode : clé de TIP_MODES.
+// divers : plongeurs débloqués (au plus un nouveau par expédition, voir unlockDiver).
 const newMeta = () => ({ runs: 0, wins: 0, bestZone: 0, bosses: 0, depth: 0, seenC: [], seenK: [], daily: {}, tips: [], tipsOff: false, glossOff: [],
-  animSpeed: 'normal', tipMode: 'instant' });
+  animSpeed: 'normal', tipMode: 'instant', divers: Object.keys(DIVERS).filter((k) => !DIVERS[k].unlock) });
 const storedMeta = loadJSON(META_KEY, {});
 const meta = Object.assign(newMeta(), storedMeta);
 // Un joueur qui a déjà des expéditions derrière lui ne reçoit pas les Découvertes d'office.
 if (storedMeta.tipsOff === undefined) meta.tipsOff = meta.runs > 0;
+// Avant le déblocage un par un, un plongeur s'ouvrait dès sa condition remplie : on garde ceux-là.
+if (storedMeta.divers === undefined) meta.divers = Object.keys(DIVERS).filter((k) => diverEarned(DIVERS[k]));
 const saveMeta = () => saveJSON(META_KEY, meta);
 const glossOn = (cat) => !meta.glossOff.includes(cat);
 
@@ -150,7 +153,7 @@ function ecoChips(r, onlyActive = false, aim = []) {
     const goal = e.next ? e.next.n : e.tier.n;
     const lines = e.eco.tiers.map((t) => `Dès ${t.n} : ${t.text}`).join(' | ');
     const tip = esc(`${e.eco.name} — ${FAMILIES[e.f].name}s dans votre banc. | ${lines}`);
-    return `<span class="eco ${e.tier ? 'on' : ''} ${aim.includes(e.f) ? 'aim' : ''}" data-tip="${tip}">${FAMILIES[e.f].icon}${onlyActive ? ` ${e.eco.name}` : ` ${e.n}/${goal}`}</span>`;
+    return `<span class="eco ${e.tier ? 'on' : ''} ${aim.includes(e.f) ? 'aim' : ''}" data-tip="${tip}">${FAMILIES[e.f].icon}${onlyActive ? `<span class="cn"> ${e.eco.name}</span>` : ` ${e.n}/${goal}`}</span>`;
   }).join('');
 }
 
@@ -173,7 +176,7 @@ function artifactCard(a, extra = '') {
   return `<div class="artifact" data-zoom data-gloss="a|${a}">${typeBand('artifact')}<div class="a-em">${x.emoji}</div><div class="a-nm">${x.name}</div><div class="a-tx">${x.text}</div>${extra}</div>`;
 }
 const artifactChip = (a) => `<span class="chip" data-tip="${esc(`${ARTIFACTS[a].name} — ${ARTIFACTS[a].text}`)}">${ARTIFACTS[a].emoji}</span>`;
-const condChip = (k) => `<span class="chip cond" data-tip="${esc(`${CONDITIONS[k].name} — ${CONDITIONS[k].text}`)}">${CONDITIONS[k].emoji} ${CONDITIONS[k].name}</span>`;
+const condChip = (k) => `<span class="chip cond" data-tip="${esc(`${CONDITIONS[k].name} — ${CONDITIONS[k].text}`)}">${CONDITIONS[k].emoji}<span class="cn"> ${CONDITIONS[k].name}</span></span>`;
 const oxygen = (r) => `<span class="o2" data-tip="Oxygène : vos points de vie. Une plongée ratée coûte 1 🫧.">${'🫧'.repeat(Math.max(0, r.oxygen))}<span class="o2-off">${'🫧'.repeat(Math.max(0, r.oxygenMax - r.oxygen))}</span></span>`;
 
 function topbar(extra = '') {
@@ -192,18 +195,31 @@ function topbar(extra = '') {
 const toast = () => (S.run.toast ? `<div class="toast">${esc(S.run.toast)}</div>` : '');
 
 // ── Écran titre ─────────────────────────────────────────────
-function diverUnlocked(v) {
+// Condition de déblocage remplie ? (fonction hoistée : la migration de `meta` l'appelle plus haut)
+function diverEarned(v) {
   if (!v.unlock) return true;
   if (v.unlock.zone) return meta.bestZone >= v.unlock.zone - 1;
   if (v.unlock.boss) return meta.bosses >= v.unlock.boss;
   return true;
 }
+const diverUnlocked = (k) => meta.divers.includes(k);
+// Fin d'expédition : le premier plongeur dont la condition est remplie la rejoint, un seul à la fois,
+// pour que chacun ait son expédition de découverte. Retourne son identifiant, ou null.
+function unlockDiver() {
+  const k = Object.keys(DIVERS).find((id) => !diverUnlocked(id) && diverEarned(DIVERS[id]));
+  if (k) meta.divers.push(k);
+  return k || null;
+}
+const diverWaiting = () => Object.keys(DIVERS).some((id) => !diverUnlocked(id) && diverEarned(DIVERS[id]));
 function renderTitle() {
+  const queue = Object.keys(DIVERS).filter((id) => !diverUnlocked(id) && diverEarned(DIVERS[id]));
   const divers = Object.entries(DIVERS).map(([k, v]) => {
-    const ok = diverUnlocked(v);
+    const ok = diverUnlocked(k);
+    const tx = ok ? v.text : queue[0] === k ? `${v.unlock.text} ✓ : vous rejoint à la fin de votre prochaine expédition.`
+      : queue.includes(k) ? `${v.unlock.text} ✓ : vous rejoindra après ${DIVERS[queue[queue.indexOf(k) - 1]].name.replace(/^L/, 'l')}.` : v.unlock.text;
     return `<button class="diver ${S.diver === k ? 'on' : ''} ${ok ? '' : 'locked'}" data-action="diver" data-k="${k}" ${ok ? glossText(v.text) : 'disabled'}>
       <div class="em">${ok ? v.emoji : '🔒'}</div><div class="nm">${v.name}</div>
-      <div class="tx">${ok ? v.text : v.unlock.text}</div></button>`;
+      <div class="tx">${tx}</div></button>`;
   }).join('');
   const depths = DEPTHS.map((dp, i) => (i <= meta.depth
     ? `<button class="btn tiny ${S.depth === i ? 'primary' : ''}" data-action="depth" data-i="${i}" data-tip="${esc(dp.text)}">${i === 0 ? 'Surface' : i}</button>` : '')).join('');
@@ -335,9 +351,12 @@ function renderDive() {
     const st = n < d.tide || (n === d.tide && !placing) ? 'used' : n === d.tide ? 'now' : '';
     return `<span class="tide ${st}" data-tip="${d.history[i] !== undefined ? `Marée ${n} : ${fmt(d.history[i])}` : `Marée ${n}`}">🌊</span>`;
   }).join('');
+  // Conditions et écosystèmes actifs : au-delà de 3 pastilles, seules leurs icônes restent (le nom est dans la bulle),
+  // pour que la barre de score garde sa place au centre.
+  const chips = d.cond.length + E.ecoStatus(r).filter((e) => e.tier).length;
   const hud = `<section class="hud">
     <div class="h-l"><div class="dname">${title} <span class="muted">· rangée ${node.row + 1}</span></div>
-      <div class="conds">${d.cond.map(condChip).join('')}${ecoChips(r, true) || (d.cond.length ? '' : '<span class="muted">Aucune condition</span>')}</div></div>
+      <div class="conds ${chips > 3 ? 'dense' : ''}">${d.cond.map(condChip).join('')}${ecoChips(r, true) || (d.cond.length ? '' : '<span class="muted">Aucune condition</span>')}</div></div>
     <div class="h-c">
       <div class="bar"><div class="fill ${d.score >= d.target ? 'ok' : ''}" style="width:${pct}%"></div><div class="ghost" style="left:${pct}%;width:${proj}%"></div></div>
       <div class="sc"><b data-count="${d.score}">${fmt(d.score)}</b> / ${fmt(d.target)}${placing && info.total ? ` <span class="proj">+${fmt(info.total)}</span>` : ''}</div>
@@ -385,9 +404,12 @@ function renderDive() {
     const ends = ci < r.corals.length - 1 ? [d.board[ci].E, d.board[ci + 1].W].filter(Boolean).length : 0;
     const bridge = ci < r.corals.length - 1
       ? `<div class="bridge ${['', 'half', 'on'][ends]}" data-tip="${esc(`Pont — Ce Flanc ➡ et le Flanc ⬅ du corail suivant sont voisins. | ${['Posez une créature de chaque côté pour les relier.', 'Plus qu’une créature à poser de l’autre côté.', 'Actif : ces deux créatures sont voisines.'][ends]}`)}"><span class="b-ic">🔗</span></div>` : '';
-    return `<div class="coral-wrap ${bridge ? 'has-bridge' : ''}"><div class="coral" style="--fam:${k.color}">
+    // Marée montante : la mer monte sur ce corail à cette marée, annoncé avant même la première pose.
+    const surge = ci === d.surge && E.surgeMult(r) > 0
+      ? `<div class="surge-tag" data-tip="${esc(`🌊 Marée montante — La mer monte sur ce corail à cette marée : +${E.surgeMult(r)} Mult s’il porte des créatures (+${BASE.risingMult} par marée déjà jouée). | À chaque marée, elle choisit un autre corail.`)}">🌊 +${E.surgeMult(r)}M</div>` : '';
+    return `<div class="coral-wrap ${bridge ? 'has-bridge' : ''}"><div class="coral ${surge ? 'surged' : ''}" style="--fam:${k.color}">
       ${slotHTML(ci, 'N')}${slotHTML(ci, 'W')}
-      <div class="core" data-zoom>${zoomTpl(coralCard(c.t, { lvl: c.lvl }))}<div class="em">${k.emoji}</div><div class="nm">${k.name}</div><div class="mb">Mult ${k.mult + c.lvl}</div></div>
+      <div class="core" data-zoom>${zoomTpl(coralCard(c.t, { lvl: c.lvl }))}<div class="em">${k.emoji}</div><div class="nm">${k.name}</div><div class="mb">Mult ${k.mult + c.lvl}</div>${surge}</div>
       ${slotHTML(ci, 'E')}${slotHTML(ci, 'S')}
       <div class="crowns tl">${crownB}</div><div class="crowns tr">${otherB}</div>
       ${bridge}
@@ -515,10 +537,14 @@ function renderShop() {
   const mu = (s.mu || []).map((x, i) => (x ? mutationCard(x.m, buy('mu', i, x.price)) : '<div class="sold short">Vendu</div>')).join('');
   const swapNote = E.reefFull(r) ? '<div class="hints"><span class="hint">♻️ Récif plein : remplace un corail</span></div>' : '';
   const co = s.co.map((x, i) => (x ? `<div class="offer-item">${coralCard(x.t)}${swapNote}${buy('co', i, x.price)}</div>` : sold)).join('');
+  // Composition du banc par famille, familles en vente soulignées : de quoi juger chaque achat.
+  const aim = s.cr.filter(Boolean).map((x) => CREATURES[x.t].fam);
+  const eco = `<div class="shop-eco"><span class="kit-lbl">🌿 Familles de votre banc · ${r.bag.length} créatures${aim.length ? ' · souligné : en vente' : ''}</span><div class="eco-row">${ecoChips(r, false, aim)}</div></div>`;
   app.innerHTML = `<div class="screen">${topbar()}${toast()}<div class="between">
     <h2>🛖 Le Comptoir</h2>
     <div class="shop-top">
       <div><h3>${CARD_TYPES.creature.icon} Créatures <button class="btn tiny" data-action="reroll" ${r.pearls >= s.reroll ? '' : 'disabled'}>↻ Renouveler · ⚪ ${s.reroll}</button></h3>
+        ${eco}
         <div class="offer">${cr}</div></div>
       ${s.co.length ? `<div><h3>${CARD_TYPES.coral.icon} Bouture de corail</h3><div class="offer">${co}</div></div>` : ''}
     </div>
@@ -539,7 +565,8 @@ function renderEvent() {
     ? `<p class="ev-res">${esc(r.event.msg || '')}</p><button class="btn primary" data-action="leave">Continuer →</button>`
     : ev.choices.map((c, i) => {
       const ok = !c.ok || c.ok(r);
-      return `<button class="btn choice" data-action="evchoice" data-i="${i}" ${ok ? '' : 'disabled'} ${glossText(`${c.label}. ${c.text || ''}`)}><b>${esc(c.label)}</b>${c.text ? `<span>${esc(c.text)}</span>` : ''}</button>`;
+      const tx = typeof c.text === 'function' ? c.text(r) : c.text;
+      return `<button class="btn choice" data-action="evchoice" data-i="${i}" ${ok ? '' : 'disabled'} ${glossText(`${c.label}. ${tx || ''}`)}><b>${esc(c.label)}</b>${tx ? `<span>${esc(tx)}</span>` : ''}</button>`;
     }).join('');
   app.innerHTML = `<div class="screen">${topbar()}<div class="between event">
     <div class="ev-em">${ev.emoji}</div><h2>${ev.title}</h2><p class="ev-tx">${ev.text}</p>
@@ -589,6 +616,7 @@ function renderEnd() {
       <div class="line"><span>Graine</span><b>${r.seed}</b></div>
     </div>
     ${r.depthUnlocked ? `<p class="unlock">🔓 ${DEPTHS[r.depth + 1].name} débloquée !</p>` : ''}
+    ${e.diver ? `<p class="unlock">🔓 Nouveau plongeur : ${DIVERS[e.diver].emoji} <b>${DIVERS[e.diver].name}</b><br><span class="muted">${DIVERS[e.diver].text}</span>${e.diverNext ? '<br><span class="muted">Un autre plongeur vous attend à la fin de votre prochaine expédition.</span>' : ''}</p>` : ''}
     ${r.daily ? `<p class="muted">📅 Plongée du jour ${r.day || ''}${r.ranked ? ' · essai classé' : ' · hors classement'}</p>` : ''}
     <div class="row">${r.daily ? '<button class="btn" data-action="share">📋 Copier mon résultat</button>' : ''}<button class="btn primary" data-action="totitle">Retour au menu</button></div>
   </div></div>`;
@@ -621,7 +649,7 @@ const RULES = `
   <h4>Roguelike</h4><p>🫧 <b>Oxygène</b> : une plongée ratée vous en coûte 1 ; à zéro, l’expédition s’arrête. Rater un gardien en coûte ${BASE.bossRetryCost} pour une seule seconde chance, à condition qu’il vous en reste au moins 1 ensuite ; sinon l’expédition prend fin. Vaincre un gardien rend 1 🫧.
   Les marées non utilisées rapportent des perles. Certaines créatures <b>grandissent</b> ou en <b>dévorent</b> d’autres, et ces changements sont permanents.
   Atteindre les Abysses débloque une <b>Profondeur</b> plus difficile.
-  🌊 <b>Marée montante</b> : à chaque marée d’une plongée, vos coraux gagnent +1 Mult. Une plongée sans espoir ? 🏳️ <b>Remonter</b> l’abandonne (elle compte comme ratée).</p>
+  🌊 <b>Marée montante</b> : à partir de la deuxième marée, la mer monte sur un corail tiré au hasard, jamais le même deux fois de suite : il gagne +${BASE.risingMult} Mult par marée déjà jouée. Une plongée sans espoir ? 🏳️ <b>Remonter</b> l’abandonne (elle compte comme ratée).</p>
   <h4>Astuces</h4><p>Survolez une carte pour lire la définition de ses mots-clés et voir les cartes qu’elle cite, comme la forme éclose d’un Œuf de requin.
   Le bandeau en haut d’une carte indique son type : 🐾 créature, 🪸 corail, 🏺 artefact ou 🧬 mutation.
   Glissez-déposez les créatures pour les poser, les déplacer ou les échanger sur le récif, les reprendre en main ou choisir l’ordre de votre main.</p>`;
@@ -885,8 +913,9 @@ for (const step of TUTO) {
 }
 const tutoForce = () => (S.tuto && TUTO[S.tuto.i].force) || null;
 const tutoAllows = (ci, s) => { const f = tutoForce(); return !f || (f.ci === ci && f.s === s); };
-// Ce que le tutoriel a déjà expliqué : ces Découvertes sont considérées comme lues.
-const TUTO_COVERS = ['aftertide'];
+// Ce que le tutoriel a déjà expliqué ou fait pratiquer (il fait survoler les cartes) :
+// ces Découvertes sont considérées comme lues.
+const TUTO_COVERS = ['aftertide', 'hover'];
 
 function startTuto() {
   S.run = E.tutorialRun();
@@ -977,8 +1006,9 @@ const TIPS = [
     text: `Une couronne d'une seule famille forme une 🎯 <b>Harmonie</b> : Mult ×2. Toutes de familles différentes, une 🌈 <b>Mosaïque</b> : Mult ×1,5. La famille est l'icône en haut à gauche de chaque carte.` },
   { id: 'bridge', title: 'Les ponts 🔗', target: '.bridge.half, .bridge.on', when: placing,
     text: `Le Flanc ➡ d'un corail et le Flanc ⬅ du suivant sont <b>voisins</b>. Posez une créature de chaque côté : le pont s'illumine et les effets de voisinage passent d'un corail à l'autre.` },
-  { id: 'rising', title: 'La marée montante 🌊', target: '.crowns.tr .crown.rising', when: (r) => placing(r) && r.dive.tide >= 2,
-    text: `À chaque marée d'une plongée, la mer monte : chaque corail garni gagne <b>+1 Mult</b> par marée déjà jouée. Les dernières marées rapportent davantage. Une plongée perdue d'avance ? 🏳️ <b>Remonter</b> l'abandonne (elle compte comme ratée).` },
+  { id: 'rising', title: 'La marée montante 🌊', target: '.coral.surged', when: (r) => placing(r) && r.dive.tide >= 2,
+    text: `À chaque marée, la mer monte sur ${fl(0, 'un de vos coraux')}, tiré au hasard : il gagne <b>+${BASE.risingMult} Mult</b> par marée déjà jouée, s'il porte des créatures. Elle change de corail à chaque marée : posez-y vos meilleures créatures. Une plongée perdue d'avance ? 🏳️ <b>Remonter</b> l'abandonne (elle compte comme ratée).`,
+    focus: ['.surge-tag'] },
   { id: 'remous', title: 'Le Remous 🌀', target: '[data-action="remous"]', when: (r) => placing(r) && r.dive.tide >= 2 && r.dive.remous > 0,
     text: `Une main qui ne vous plaît pas ? Le <b>Remous</b> renvoie les créatures choisies dans la pioche et vous en donne autant de nouvelles. Vous n'en avez que quelques-uns par plongée.` },
   // Entre les plongées
@@ -988,9 +1018,11 @@ const TIPS = [
     text: `Une plongée réussie rapporte des perles ⚪ (plus encore si vous finissez en avance) et une créature pour votre banc. ${fl(0, 'Sous une offre')}, l'icône d'un de vos coraux signale qu'il la met en valeur.`,
     focus: ['.offer-item:first-child .hints'] },
   { id: 'map', title: 'La carte', target: '.map-col', when: (r) => r.phase === 'map',
-    text: `Votre route descend de haut en bas, et chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.` },
+    text: `Votre route descend ${fl(0, 'de ces étapes')} jusqu'au ${fl(1, 'gardien 🛡️', 'mlt')}, tout en bas : la plongée la plus dure de la zone, qui en garde la sortie. Chaque étape n'ouvre que celles qui lui sont reliées. <b>Survolez une étape</b> pour savoir ce qu'elle propose.`,
+    focus: ['.map .node.av', '.map .t-boss'] },
   { id: 'guardian', title: 'Le gardien 🛡️', after: 'map', chain: true, target: '.boss-card', when: (r) => r.phase === 'map',
-    text: `Chaque zone se termine par un <b>gardien</b>, annoncé dès maintenant avec sa règle : préparez votre récif en conséquence. Le vaincre fait pousser un nouveau corail.` },
+    text: `${fl(0, 'Le gardien', 'mlt')} est annoncé dès maintenant, avec son objectif et ${fl(1, 'sa règle')} : préparez votre récif en conséquence. Le rater coûte cher en oxygène 🫧 ; le vaincre fait pousser un nouveau corail et ouvre la zone suivante.`,
+    focus: ['.map .t-boss', '.boss-card .bc-c'] },
   { id: 'eco', title: 'Les écosystèmes 🌿', target: '.eco-row', when: (r) => r.phase === 'map' || r.phase === 'draft',
     text: `Votre banc compte ses créatures par famille : <b>🐟 4/7</b>, c'est 4 Poissons, et un bonus à 7. ${fl(0, 'En vert')}, le bonus est actif. Les offres l'indiquent par l'icône de la famille.`,
     focus: ['.eco-row .eco.on'] },
@@ -1344,6 +1376,8 @@ function onRunEnd() {
   const r = S.run;
   meta.bestZone = Math.max(meta.bestZone, r.end.zone);
   if (r.end.win && !r.end.tutorial) meta.wins++;
+  r.end.diver = unlockDiver();
+  r.end.diverNext = diverWaiting();
   // Plongée du jour : seul le premier essai est classé. Score : progression, puis points marqués.
   if (r.daily && r.ranked) {
     meta.daily[r.day || today()] = { best: dailyProgress(r), score: r.end.win ? 999 : r.end.zone * 10 + r.end.row, pts: r.points || 0 };
